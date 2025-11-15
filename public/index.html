@@ -1,0 +1,2176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amily - Premium Digital Companion</title>
+    <link rel="icon" type="image/png" href="/logo.png" />
+    
+    <!-- React and ReactDOM from CDN -->
+    <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom font & Tailwind theme tweaks -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        display: ['DM Sans', 'system-ui', 'sans-serif'],
+                        body: ['DM Sans', 'system-ui', 'sans-serif'],
+                    },
+                    dropShadow: {
+                        glow: '0 0 25px rgba(244, 114, 182, 0.45)',
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        @keyframes blob {
+            0%, 100% {
+                transform: translate(0, 0) scale(1);
+            }
+            33% {
+                transform: translate(30px, -50px) scale(1.1);
+            }
+            66% {
+                transform: translate(-20px, 20px) scale(0.9);
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-blob {
+            animation: blob 7s infinite;
+        }
+
+        .animate-slideIn {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .animation-delay-200 {
+            animation-delay: 200ms;
+        }
+
+        .animation-delay-400 {
+            animation-delay: 400ms;
+        }
+
+        .animation-delay-2000 {
+            animation-delay: 2s;
+        }
+
+        .animation-delay-4000 {
+            animation-delay: 4s;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { createRoot } = ReactDOM;
+
+        // Icon Components
+        const ShieldIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2m0 0l4-4m-4 4V7m0 6h6m-6 0H7" /></svg>;
+        const HeartIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>;
+        const CalendarIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>;
+        const BookOpenIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C6.5 6.253 2 10.998 2 17.25m20-11.197C17.5 6.253 13 10.998 13 17.25m0-13v13m0-13C19.5 6.253 24 10.998 24 17.25" /></svg>;
+        const UsersIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 8.048M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+        const SparklesIcon = () => <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M9.153 21.064c-.597.095-1.17-.341-1.142-1.022l.706-19.895a.75.75 0 0 1 1.494.098l-.707 19.9c-.029.692-.584 1.122-1.351 1.919zm.921.815a.75.75 0 0 1-.545-1.28c.769-.721 2.546-2.399 2.546-5.681 0-3.283-1.777-4.96-2.546-5.681a.75.75 0 0 1 1.091-1.028c.987.905 2.455 2.369 2.455 6.709 0 4.34-1.468 5.804-2.455 6.709a.75.75 0 0 1-.546.271z" /></svg>;
+        const ActivityIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 18h.01M4 18h.01M3.172 6.172a4 4 0 015.656 0L12 10.343m5.656-4.171a4 4 0 010 5.656L12 20.343M9 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
+        const DropletsIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3v-6" /></svg>;
+        const PillIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2m4-4l2 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
+        const PhoneIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>;
+        const MenuIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg>;
+        const SendIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>;
+        const SaveIcon = () => <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>;
+        const AlertTriangleIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4v2m0 0v2m0-6a2 2 0 11-4 0 2 2 0 014 0z" /></svg>;
+        const SunIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>;
+        const MoonIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>;
+        const XIcon = () => <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>;
+
+        // FeatureCard Component
+        function FeatureCard({ icon: Icon, title, description, gradient, darkMode }) {
+            const [tilt, setTilt] = useState({ rotateX: 0, rotateY: 0 });
+
+            const handleMouseMove = (e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+
+                const rotateX = ((y - centerY) / centerY) * -10; // tilt towards cursor
+                const rotateY = ((x - centerX) / centerX) * 10;
+
+                setTilt({ rotateX, rotateY });
+            };
+
+            const handleMouseLeave = () => {
+                setTilt({ rotateX: 0, rotateY: 0 });
+            };
+
+            return (
+                <div
+                    onMouseMove={handleMouseMove}
+                    onMouseLeave={handleMouseLeave}
+                    style={{
+                        transform: `perspective(900px) rotateX(${tilt.rotateX}deg) rotateY(${tilt.rotateY}deg)`,
+                    }}
+                    className={`group relative overflow-hidden rounded-3xl p-8 transition-transform duration-300 hover:drop-shadow-glow border ${
+                        darkMode
+                            ? 'bg-gradient-to-b from-slate-950/90 via-slate-900/70 to-slate-900/40 border-slate-700/80'
+                            : 'bg-gradient-to-b from-white via-rose-50/70 to-orange-50/40 border-rose-100'
+                    }`}
+                >
+                    <div className="pointer-events-none absolute inset-px rounded-[1.35rem] border border-white/5" />
+                    <div className="relative flex flex-col h-full">
+                        <div className="flex items-center justify-between mb-6">
+                            <div
+                                className={`inline-flex p-4 rounded-2xl bg-gradient-to-br ${gradient} shadow-lg group-hover:scale-110 transition-transform duration-300 text-white`}
+                            >
+                                <Icon />
+                            </div>
+                            <span
+                                className={`text-[11px] uppercase tracking-[0.22em] font-semibold ${
+                                    darkMode ? 'text-slate-400' : 'text-rose-400'
+                                }`}
+                            >
+                                Core Pillar
+                            </span>
+                        </div>
+                        <h3
+                            className={`text-xl md:text-2xl font-bold mb-3 font-display group-hover:text-rose-400 transition-colors ${
+                                darkMode ? 'text-slate-50' : 'text-slate-900'
+                            }`}
+                        >
+                            {title}
+                        </h3>
+                        <p
+                            className={`leading-relaxed text-sm md:text-base ${
+                                darkMode ? 'text-slate-300' : 'text-slate-600'
+                            }`}
+                        >
+                            {description}
+                        </p>
+                        <div className="mt-6 flex items-center justify-between text-xs text-slate-400">
+                            <div className="flex items-center gap-2">
+                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-400 text-[11px]">
+                                    ✓
+                                </span>
+                                <span className="uppercase tracking-[0.18em]">Gentle by design</span>
+                            </div>
+                            <span className="opacity-70 group-hover:opacity-100 transition-opacity">
+                                Tap to explore
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Navigation Component
+        function Navigation({ systemStatus, darkMode, currentPage, onNavigate, onLogout, isLoggedIn }) {
+            const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+            const navItems = [
+                { id: 'home', label: 'Home' },
+                { id: 'checkin', label: 'Check-in' },
+                { id: 'safety', label: 'Safety' },
+                { id: 'wellness', label: 'Wellness' },
+                { id: 'memories', label: 'Memories' },
+                { id: 'empathy', label: 'Support' }
+            ];
+
+            const getStatusColor = () => {
+                if (systemStatus === 'loading') return 'bg-gray-400';
+                if (systemStatus === 'offline') return 'bg-gray-500';
+                return 'bg-emerald-500';
+            };
+
+            return (
+                <nav className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-lg border-b shadow-sm transition-colors ${
+                    darkMode ? 'bg-gray-900/80 border-gray-700' : 'bg-white/80 border-rose-100'
+                }`}>
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex items-center justify-between h-16">
+                            <button type="button" onClick={() => onNavigate('home')} className="flex items-center group">
+                                <img src="/logo.png" alt="Amily" className="w-16 h-16 transform transition-transform group-hover:scale-110" />
+                            </button>
+
+                            <div className="hidden md:flex items-center gap-1">
+                                {navItems.map((item) => (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => onNavigate(item.id)}
+                                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                                            darkMode 
+                                                ? 'text-gray-300 hover:text-rose-400 hover:bg-gray-800' 
+                                                : 'text-gray-700 hover:text-rose-600 hover:bg-rose-50'
+                                        } ${currentPage === item.id ? (darkMode ? 'bg-gray-800 text-rose-400' : 'bg-rose-50 text-rose-600') : ''}`}
+                                    >
+                                        {item.label}
+                                    </button>
+                                ))}
+                                <div className="ml-4 flex items-center gap-3">
+                                    <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${
+                                        darkMode ? 'bg-gray-800' : 'bg-gray-50'
+                                    }`}>
+                                        <div className={`w-2 h-2 rounded-full ${getStatusColor()} animate-pulse`} />
+                                        <span className={`text-xs font-medium uppercase ${
+                                            darkMode ? 'text-gray-300' : 'text-gray-600'
+                                        }`}>{systemStatus}</span>
+                                    </div>
+                                    {!isLoggedIn && (
+                                        <button className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-rose-500 to-orange-500 text-white rounded-full font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-200">
+                                            <PhoneIcon />
+                                            <span className="hidden lg:inline">Emergency</span>
+                                        </button>
+                                    )}
+                                    {onLogout && (
+                                        <button
+                                            type="button"
+                                            onClick={onLogout}
+                                            className={`px-4 py-2 rounded-full text-xs font-semibold border transition-all duration-200 ${
+                                                darkMode
+                                                    ? 'border-slate-600 text-slate-200 hover:bg-slate-900'
+                                                    : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                                            }`}
+                                        >
+                                            Log out
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <button
+                                className={`md:hidden p-2 rounded-lg ${darkMode ? 'hover:bg-gray-800 text-gray-300' : 'hover:bg-gray-100'}`}
+                                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                            >
+                                {isMenuOpen ? <XIcon /> : <MenuIcon />}
+                            </button>
+                        </div>
+                    </div>
+
+                    {isMenuOpen && (
+                        <div className={`md:hidden border-t ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-rose-100'}`}>
+                            <div className="px-4 py-3 space-y-1">
+                                {navItems.map((item) => (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        className={`block w-full text-left px-4 py-2 rounded-lg text-sm font-medium ${
+                                            darkMode 
+                                                ? 'text-gray-300 hover:text-rose-400 hover:bg-gray-800' 
+                                                : 'text-gray-700 hover:text-rose-600 hover:bg-rose-50'
+                                        } ${currentPage === item.id ? (darkMode ? 'bg-gray-800 text-rose-400' : 'bg-rose-50 text-rose-600') : ''}`}
+                                        onClick={() => {
+                                            onNavigate(item.id);
+                                            setIsMenuOpen(false);
+                                        }}
+                                    >
+                                        {item.label}
+                                    </button>
+                                ))}
+                                {onLogout && (
+                                    <button
+                                        type="button"
+                                        className={`mt-2 block w-full text-left px-4 py-2 rounded-lg text-sm font-semibold border ${
+                                            darkMode
+                                                ? 'border-slate-600 text-slate-200 hover:bg-slate-900'
+                                                : 'border-slate-300 text-slate-700 hover:bg-slate-50'
+                                        }`}
+                                        onClick={() => {
+                                            onLogout();
+                                            setIsMenuOpen(false);
+                                        }}
+                                    >
+                                        Log out
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </nav>
+            );
+        }
+
+        // Logged In Home Component
+        function LoggedInHome({ darkMode, onNavigate, userName }) {
+            const [particles, setParticles] = useState([]);
+            const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+            const [time, setTime] = useState(new Date());
+            const [hoveredCard, setHoveredCard] = useState(null);
+
+            useEffect(() => {
+                const newParticles = Array.from({ length: 30 }, (_, i) => ({
+                    id: i,
+                    x: Math.random() * 100,
+                    y: Math.random() * 100,
+                    size: Math.random() * 5 + 2,
+                    delay: Math.random() * 8,
+                    duration: Math.random() * 15 + 15
+                }));
+                setParticles(newParticles);
+
+                const timer = setInterval(() => setTime(new Date()), 1000);
+                return () => clearInterval(timer);
+            }, []);
+
+            const handleMouseMove = (e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                setMousePos({
+                    x: ((e.clientX - rect.left) / rect.width - 0.5) * 12,
+                    y: ((e.clientY - rect.top) / rect.height - 0.5) * 12
+                });
+            };
+
+            const getGreeting = () => {
+                const hour = time.getHours();
+                if (hour < 12) return 'Good Morning';
+                if (hour < 17) return 'Good Afternoon';
+                return 'Good Evening';
+            };
+
+            const quickActions = [
+                {
+                    id: 'checkin',
+                    title: 'Daily Check-in',
+                    subtitle: 'How are you today?',
+                    icon: '💭',
+                    gradient: 'from-rose-500 via-pink-500 to-rose-600',
+                    hoverGlow: 'group-hover:shadow-rose-500/60',
+                    details: 'Complete your wellness check'
+                },
+                {
+                    id: 'safety',
+                    title: 'Safety Hub',
+                    subtitle: 'Stay protected',
+                    icon: '🛡️',
+                    gradient: 'from-orange-500 via-red-500 to-orange-600',
+                    hoverGlow: 'group-hover:shadow-orange-500/60',
+                    details: 'All systems active'
+                },
+                {
+                    id: 'wellness',
+                    title: 'Wellness',
+                    subtitle: 'Track your health',
+                    icon: '💊',
+                    gradient: 'from-blue-500 via-cyan-500 to-blue-600',
+                    hoverGlow: 'group-hover:shadow-blue-500/60',
+                    details: '2 reminders today'
+                },
+                {
+                    id: 'memories',
+                    title: 'Memories',
+                    subtitle: 'Life stories',
+                    icon: '📖',
+                    gradient: 'from-purple-500 via-violet-500 to-purple-600',
+                    hoverGlow: 'group-hover:shadow-purple-500/60',
+                    details: '12 stories saved'
+                },
+                {
+                    id: 'empathy',
+                    title: 'Support Chat',
+                    subtitle: 'Talk with Amily',
+                    icon: '💬',
+                    gradient: 'from-emerald-500 via-teal-500 to-emerald-600',
+                    hoverGlow: 'group-hover:shadow-emerald-500/60',
+                    details: 'I\'m here to listen'
+                }
+            ];
+
+            return (
+                <section className="relative pt-20 pb-16 overflow-hidden">
+                    {/* Ambient Background Orbs */}
+                    <div className="absolute inset-0 pointer-events-none">
+                        <div className="absolute top-0 -left-40 w-[500px] h-[500px] bg-gradient-to-br from-rose-500/30 to-pink-500/30 rounded-full mix-blend-screen blur-3xl animate-blob opacity-70" />
+                        <div className="absolute top-40 -right-40 w-[500px] h-[500px] bg-gradient-to-br from-purple-500/30 to-violet-500/30 rounded-full mix-blend-screen blur-3xl animate-blob animation-delay-2000 opacity-70" />
+                        <div className="absolute bottom-0 left-1/3 w-[500px] h-[500px] bg-gradient-to-br from-orange-500/30 to-amber-500/30 rounded-full mix-blend-screen blur-3xl animate-blob animation-delay-4000 opacity-70" />
+                    </div>
+
+                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
+                        {/* Premium Greeting Card */}
+                        <div 
+                            className="relative mb-10 group/card"
+                            onMouseMove={handleMouseMove}
+                            onMouseLeave={() => setMousePos({ x: 0, y: 0 })}
+                        >
+                            <div 
+                                className={`relative rounded-[2.5rem] p-8 md:p-12 backdrop-blur-3xl border-2 transition-all duration-700 overflow-hidden ${
+                                    darkMode 
+                                        ? 'bg-gradient-to-br from-slate-900/95 via-slate-800/90 to-slate-900/95 border-slate-700/40' 
+                                        : 'bg-gradient-to-br from-white/95 via-rose-50/90 to-white/95 border-rose-200/60'
+                                }`}
+                                style={{
+                                    transform: `perspective(1500px) rotateX(${mousePos.y * 0.05}deg) rotateY(${mousePos.x * 0.05}deg) scale(1)`,
+                                    boxShadow: '0 30px 60px -15px rgba(0,0,0,0.3), 0 0 200px rgba(236, 72, 153, 0.2), inset 0 2px 60px rgba(236, 72, 153, 0.1)'
+                                }}
+                            >
+                                {/* Floating Particles Background */}
+                                {particles.map(particle => (
+                                    <div
+                                        key={particle.id}
+                                        className="absolute rounded-full pointer-events-none"
+                                        style={{
+                                            left: `${particle.x}%`,
+                                            top: `${particle.y}%`,
+                                            width: `${particle.size}px`,
+                                            height: `${particle.size}px`,
+                                            background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.4), rgba(251, 146, 60, 0.4))',
+                                            animation: `blob ${particle.duration}s infinite ease-in-out`,
+                                            animationDelay: `${particle.delay}s`,
+                                            filter: 'blur(3px)',
+                                            opacity: 0.3
+                                        }}
+                                    />
+                                ))}
+
+                                {/* Animated Glow Border */}
+                                <div className="absolute inset-0 rounded-[2.5rem] opacity-50 group-hover/card:opacity-70 transition-opacity duration-700">
+                                    <div className="absolute inset-0 rounded-[2.5rem] bg-gradient-to-r from-rose-500 via-purple-500 via-pink-500 to-orange-500 opacity-40 blur-3xl animate-pulse" style={{ animationDuration: '3s' }} />
+                                </div>
+
+                                <div className="relative z-10">
+                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8 mb-8">
+                                        {/* User Info */}
+                                        <div className="flex items-center gap-6">
+                                            <div className="relative group/avatar">
+                                                {/* Avatar Glow */}
+                                                <div className="absolute inset-0 bg-gradient-to-r from-rose-500 via-pink-500 to-orange-500 rounded-full blur-2xl opacity-60 group-hover/avatar:opacity-90 transition-opacity duration-500" style={{ transform: 'scale(1.3)' }} />
+                                                {/* Avatar */}
+                                                <div className="relative w-28 h-28 rounded-full bg-gradient-to-br from-rose-500 via-pink-500 to-orange-500 p-[3px] shadow-2xl">
+                                                    <div className={`w-full h-full rounded-full flex items-center justify-center text-5xl font-bold ${
+                                                        darkMode ? 'bg-slate-900' : 'bg-white'
+                                                    }`}>
+                                                        {userName ? userName.charAt(0).toUpperCase() : '👤'}
+                                                    </div>
+                                                </div>
+                                                {/* Status Badge */}
+                                                <div className="absolute -bottom-2 -right-2 w-10 h-10 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-full border-4 border-slate-900 flex items-center justify-center shadow-xl animate-pulse">
+                                                    <span className="text-white text-sm font-bold">✓</span>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <p className={`text-base md:text-lg font-semibold mb-1.5 ${
+                                                    darkMode ? 'text-slate-400' : 'text-slate-600'
+                                                }`}>
+                                                    {getGreeting()},
+                                                </p>
+                                                <h1 className="text-5xl md:text-7xl font-bold font-display bg-gradient-to-r from-rose-400 via-pink-500 to-orange-400 bg-clip-text text-transparent" style={{ filter: 'drop-shadow(0 4px 20px rgba(236, 72, 153, 0.3))' }}>
+                                                    {userName || 'Welcome'}
+                                                </h1>
+                                                <p className={`text-sm md:text-base mt-2 font-medium ${
+                                                    darkMode ? 'text-slate-500' : 'text-slate-500'
+                                                }`}>
+                                                    ✨ Ready to make today wonderful?
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Clock Display */}
+                                        <div className={`p-6 rounded-3xl backdrop-blur-md border-2 shadow-2xl ${
+                                            darkMode ? 'bg-slate-800/60 border-slate-700/50' : 'bg-white/60 border-slate-200'
+                                        }`}>
+                                            <div className={`text-4xl md:text-5xl font-bold font-display text-center mb-2 ${
+                                                darkMode ? 'text-slate-100' : 'text-slate-900'
+                                            }`}>
+                                                {time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                            </div>
+                                            <div className={`text-sm text-center font-medium ${
+                                                darkMode ? 'text-slate-400' : 'text-slate-600'
+                                            }`}>
+                                                {time.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Stats Grid */}
+                                    <div className="grid grid-cols-3 gap-4 md:gap-6">
+                                        <div className={`p-5 md:p-7 rounded-3xl backdrop-blur-md border-2 transition-all duration-500 hover:scale-105 hover:-translate-y-1 cursor-pointer ${
+                                            darkMode ? 'bg-slate-800/70 border-slate-700/60 hover:border-emerald-500/70 hover:shadow-emerald-500/30' : 'bg-white/70 border-slate-200 hover:border-emerald-400 hover:shadow-emerald-400/30'
+                                        }`} style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
+                                            <div className="flex flex-col items-center text-center gap-3">
+                                                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-3xl shadow-xl transform hover:rotate-12 transition-transform">
+                                                    ❤️
+                                                </div>
+                                                <div>
+                                                    <p className={`text-2xl md:text-3xl font-bold font-display ${
+                                                        darkMode ? 'text-slate-100' : 'text-slate-900'
+                                                    }`}>Great</p>
+                                                    <p className={`text-xs font-semibold uppercase tracking-wider ${
+                                                        darkMode ? 'text-slate-400' : 'text-slate-600'
+                                                    }`}>Wellness</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className={`p-5 md:p-7 rounded-3xl backdrop-blur-md border-2 transition-all duration-500 hover:scale-105 hover:-translate-y-1 cursor-pointer ${
+                                            darkMode ? 'bg-slate-800/70 border-slate-700/60 hover:border-blue-500/70 hover:shadow-blue-500/30' : 'bg-white/70 border-slate-200 hover:border-blue-400 hover:shadow-blue-400/30'
+                                        }`} style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
+                                            <div className="flex flex-col items-center text-center gap-3">
+                                                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center text-3xl shadow-xl transform hover:rotate-12 transition-transform">
+                                                    🎯
+                                                </div>
+                                                <div>
+                                                    <p className={`text-2xl md:text-3xl font-bold font-display ${
+                                                        darkMode ? 'text-slate-100' : 'text-slate-900'
+                                                    }`}>2</p>
+                                                    <p className={`text-xs font-semibold uppercase tracking-wider ${
+                                                        darkMode ? 'text-slate-400' : 'text-slate-600'
+                                                    }`}>Tasks</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className={`p-5 md:p-7 rounded-3xl backdrop-blur-md border-2 transition-all duration-500 hover:scale-105 hover:-translate-y-1 cursor-pointer ${
+                                            darkMode ? 'bg-slate-800/70 border-slate-700/60 hover:border-purple-500/70 hover:shadow-purple-500/30' : 'bg-white/70 border-slate-200 hover:border-purple-400 hover:shadow-purple-400/30'
+                                        }`} style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
+                                            <div className="flex flex-col items-center text-center gap-3">
+                                                <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-3xl shadow-xl transform hover:rotate-12 transition-transform">
+                                                    ⚡
+                                                </div>
+                                                <div>
+                                                    <p className={`text-2xl md:text-3xl font-bold font-display ${
+                                                        darkMode ? 'text-slate-100' : 'text-slate-900'
+                                                    }`}>7</p>
+                                                    <p className={`text-xs font-semibold uppercase tracking-wider ${
+                                                        darkMode ? 'text-slate-400' : 'text-slate-600'
+                                                    }`}>Day Streak</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Section Title */}
+                        <div className="text-center mb-10">
+                            <h2 className={`text-3xl md:text-4xl font-bold mb-3 font-display ${
+                                darkMode ? 'text-slate-100' : 'text-slate-900'
+                            }`}>
+                                Your Daily Activities
+                            </h2>
+                            <p className={`text-base md:text-lg font-medium ${
+                                darkMode ? 'text-slate-400' : 'text-slate-600'
+                            }`}>
+                                Choose what feels right for you today ✨
+                            </p>
+                        </div>
+
+                        {/* Activity Cards Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {quickActions.map((action, index) => (
+                                <button
+                                    key={action.id}
+                                    onClick={() => onNavigate(action.id)}
+                                    onMouseEnter={() => setHoveredCard(action.id)}
+                                    onMouseLeave={() => setHoveredCard(null)}
+                                    className={`group relative p-8 rounded-[2rem] border-2 transition-all duration-500 text-left overflow-hidden ${
+                                        darkMode 
+                                            ? 'bg-slate-800/60 border-slate-700/50 hover:border-slate-600 hover:bg-slate-800/80' 
+                                            : 'bg-white/80 border-slate-200 hover:border-slate-300 hover:bg-white'
+                                    } ${action.hoverGlow} hover:scale-105 hover:-translate-y-2`}
+                                    style={{ 
+                                        boxShadow: hoveredCard === action.id 
+                                            ? '0 25px 50px -12px rgba(0,0,0,0.4), 0 0 60px rgba(236, 72, 153, 0.3)' 
+                                            : '0 10px 30px -10px rgba(0,0,0,0.2)',
+                                        animationDelay: `${index * 100}ms`
+                                    }}
+                                >
+                                    {/* Gradient Overlay on Hover */}
+                                    <div className={`absolute inset-0 bg-gradient-to-br ${action.gradient} opacity-0 group-hover:opacity-5 transition-opacity duration-500 rounded-[2rem]`} />
+                                    
+                                    {/* Icon */}
+                                    <div className={`relative inline-flex items-center justify-center w-20 h-20 mb-6 rounded-2xl bg-gradient-to-br ${action.gradient} text-5xl shadow-2xl transform group-hover:scale-110 group-hover:rotate-6 transition-all duration-500`}>
+                                        {action.icon}
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="relative">
+                                        <h3 className={`text-2xl md:text-3xl font-bold mb-2 font-display group-hover:bg-gradient-to-r ${action.gradient} group-hover:bg-clip-text group-hover:text-transparent transition-all duration-500 ${
+                                            darkMode ? 'text-slate-100' : 'text-slate-900'
+                                        }`}>
+                                            {action.title}
+                                        </h3>
+                                        <p className={`text-base mb-3 font-medium ${
+                                            darkMode ? 'text-slate-400' : 'text-slate-600'
+                                        }`}>
+                                            {action.subtitle}
+                                        </p>
+                                        <div className={`flex items-center gap-2 text-sm ${
+                                            darkMode ? 'text-slate-500' : 'text-slate-500'
+                                        }`}>
+                                            <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${action.gradient}`} />
+                                            <span>{action.details}</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Arrow Icon */}
+                                    <div className={`absolute bottom-8 right-8 w-10 h-10 rounded-full bg-gradient-to-br ${action.gradient} flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transform translate-x-4 group-hover:translate-x-0 transition-all duration-500 shadow-xl`}>
+                                        <span className="text-lg">→</span>
+                                    </div>
+                                </button>
+                            ))}
+
+                            {/* Help Card */}
+                            <div className={`p-8 rounded-[2rem] border-2 backdrop-blur-md ${
+                                darkMode 
+                                    ? 'bg-gradient-to-br from-slate-800/40 to-slate-900/40 border-slate-700/50' 
+                                    : 'bg-gradient-to-br from-rose-50/60 to-orange-50/60 border-rose-200/60'
+                            }`} style={{ boxShadow: '0 10px 30px -10px rgba(0,0,0,0.2)' }}>
+                                <div className="text-center h-full flex flex-col items-center justify-center">
+                                    <div className={`text-6xl mb-4 transform hover:scale-110 transition-transform duration-300`}>
+                                        👋
+                                    </div>
+                                    <h3 className={`text-2xl font-bold mb-3 font-display ${
+                                        darkMode ? 'text-slate-100' : 'text-slate-900'
+                                    }`}>
+                                        Need Help?
+                                    </h3>
+                                    <p className={`text-sm font-medium ${
+                                        darkMode ? 'text-slate-400' : 'text-slate-600'
+                                    }`}>
+                                        We're always here to assist you with any questions or support you need
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        // Hero Component
+        function Hero({ darkMode, isLoggedIn, onNavigate }) {
+            const [cardTilt, setCardTilt] = useState({ rotateX: 0, rotateY: 0 });
+
+            const handleCardMouseMove = (e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const centerX = rect.width / 2;
+                const centerY = rect.height / 2;
+
+                const rotateX = ((y - centerY) / centerY) * -10;
+                const rotateY = ((x - centerX) / centerX) * 10;
+
+                setCardTilt({ rotateX, rotateY });
+            };
+
+            const handleCardMouseLeave = () => {
+                setCardTilt({ rotateX: 0, rotateY: 0 });
+            };
+
+            return (
+                <section id="home" className="relative pt-32 pb-24 overflow-hidden">
+                    <div
+                        className={`absolute inset-0 ${
+                            darkMode
+                                ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950'
+                                : 'bg-gradient-to-br from-rose-100 via-amber-50 to-sky-100'
+                        }`}
+                    />
+
+                    <div
+                        className={`absolute -top-24 -left-10 w-80 h-80 rounded-full mix-blend-screen blur-3xl opacity-40 animate-blob ${
+                            darkMode ? 'bg-rose-500/60' : 'bg-rose-300/70'
+                        }`}
+                    />
+                    <div
+                        className={`absolute top-40 -right-10 w-80 h-80 rounded-full mix-blend-screen blur-3xl opacity-40 animate-blob animation-delay-2000 ${
+                            darkMode ? 'bg-orange-500/60' : 'bg-orange-300/70'
+                        }`}
+                    />
+                    <div
+                        className={`absolute bottom-0 left-1/2 w-96 h-96 rounded-full mix-blend-screen blur-3xl opacity-40 animate-blob animation-delay-4000 ${
+                            darkMode ? 'bg-pink-500/60' : 'bg-pink-300/70'
+                        }`}
+                    />
+
+                    <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="grid gap-12 lg:grid-cols-[minmax(0,1.3fr),minmax(0,1fr)] items-center">
+                            <div className="text-center lg:text-left">
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-[0.26em] mb-5 bg-black/5 backdrop-blur-sm">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                    <span className={darkMode ? 'text-slate-200' : 'text-rose-600'}>
+                                        Built for calm, not speed
+                                    </span>
+                                </div>
+
+                                <h1 className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-[3.5rem] xl:text-[4rem] font-bold mb-4 leading-tight">
+                                    <span className="bg-gradient-to-r from-rose-400 via-pink-500 to-orange-400 bg-clip-text text-transparent drop-shadow-glow">
+                                        A safe space
+                                    </span>
+                                    <br />
+                                    <span className={darkMode ? 'text-slate-100' : 'text-slate-900'}>
+                                        for gentle conversations.
+                                    </span>
+                                </h1>
+
+                                <p
+                                    className={`text-base sm:text-lg md:text-xl mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed ${
+                                        darkMode ? 'text-slate-300' : 'text-slate-700'
+                                    }`}
+                                >
+                                    Amily speaks slowly, listens carefully, and remembers the little things – so older
+                                    adults and their families can feel calmer, safer, and more connected every day.
+                                </p>
+
+                                <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => onNavigate(isLoggedIn ? 'checkin' : 'login')}
+                                        className="group inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-gradient-to-r from-rose-500 via-pink-500 to-orange-500 text-white text-sm md:text-base font-semibold shadow-lg hover:shadow-2xl hover:scale-[1.03] active:scale-[0.99] transition-all duration-200"
+                                    >
+                                        <span>{isLoggedIn ? 'Try the daily check-in' : 'Log in'}</span>
+                                        <span className="group-hover:translate-x-1 transition-transform text-lg">→</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => onNavigate(isLoggedIn ? 'safety' : 'signup')}
+                                        className={`inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm md:text-base font-semibold border transition-all duration-200 ${
+                                            darkMode
+                                                ? 'bg-slate-900/60 border-slate-700 text-slate-100 hover:border-rose-400 hover:bg-slate-900/90'
+                                                : 'bg-white/80 border-rose-200 text-rose-700 hover:bg-rose-50'
+                                        }`}
+                                    >
+                                        <ShieldIcon />
+                                        <span>{isLoggedIn ? 'See safety features' : 'Create an account'}</span>
+                                    </button>
+                                </div>
+
+                                <div className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-6 text-xs sm:text-sm text-slate-400">
+                                    <div className="flex items-center gap-2">
+                                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400 text-xs">
+                                            ✓
+                                        </span>
+                                        <span>Designed with elderly users in mind</span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-sky-500/15 text-sky-400 text-xs">
+                                            ✦
+                                        </span>
+                                        <span>Clear visuals & large, gentle typography</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div
+                                className="relative"
+                                onMouseMove={handleCardMouseMove}
+                                onMouseLeave={handleCardMouseLeave}
+                                style={{
+                                    transform: `perspective(900px) rotateX(${cardTilt.rotateX}deg) rotateY(${cardTilt.rotateY}deg)`,
+                                    transformStyle: 'preserve-3d',
+                                    transition: 'transform 150ms ease-out',
+                                }}
+                            >
+                                <div
+                                    className={`relative rounded-3xl border shadow-2xl overflow-hidden backdrop-blur-xl ${
+                                        darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/90 border-rose-100'
+                                    }`}
+                                >
+                                    <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-500 to-orange-400 flex items-center justify-center text-white text-lg font-semibold shadow-md">
+                                                A
+                                            </div>
+                                            <div>
+                                                <p className={darkMode ? 'text-slate-50 text-sm font-semibold' : 'text-slate-900 text-sm font-semibold'}>
+                                                    Amily · Companion
+                                                </p>
+                                                <p className={darkMode ? 'text-emerald-300 text-xs' : 'text-emerald-600 text-xs'}>
+                                                    Online · Listening gently
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <span className={darkMode ? 'text-slate-500 text-xs' : 'text-slate-400 text-xs'}>
+                                            Today · 9:04 AM
+                                        </span>
+                                    </div>
+
+                                    <div className="p-5 space-y-4 max-h-72 overflow-hidden">
+                                        <div className="flex justify-start">
+                                            <div className="max-w-xs rounded-2xl px-4 py-3 bg-gradient-to-br from-rose-500 to-orange-500 text-white text-sm shadow-md">
+                                                Good morning... how are you feeling today?
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-end">
+                                            <div
+                                                className={`max-w-xs rounded-2xl px-4 py-3 text-sm shadow-md ${
+                                                    darkMode
+                                                        ? 'bg-slate-950 border border-slate-700 text-slate-100'
+                                                        : 'bg-white border border-slate-200 text-slate-800'
+                                                }`}
+                                            >
+                                                I feel a little lonely, but I am okay.
+                                            </div>
+                                        </div>
+                                        <div className="flex justify-start">
+                                            <div className="max-w-xs rounded-2xl px-4 py-3 bg-gradient-to-br from-orange-500 to-amber-500 text-white text-sm shadow-md">
+                                                Thank you for telling me... I am right here with you. We will take today
+                                                slowly, one gentle step at a time.
+                                            </div>
+                                        </div>
+                                        <div className="pt-2 text-[11px] text-slate-400 flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                            <span>Amily is speaking in a calm, steady voice…</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="absolute -bottom-8 -left-6 w-28 h-28 rounded-3xl bg-gradient-to-br from-rose-400/80 to-orange-400/80 blur-3xl opacity-60 pointer-events-none" />
+                                <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-gradient-to-br from-pink-500/70 to-amber-400/70 blur-3xl opacity-60 pointer-events-none" />
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        // CheckInDemo Component
+        function CheckInDemo({ darkMode }) {
+            const [mood, setMood] = useState('ok');
+            const [messages, setMessages] = useState([
+                { type: 'amily', text: "Good morning... how are you feeling today?" }
+            ]);
+            const [input, setInput] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+
+            const moods = [
+                { value: 'low', emoji: '😔', label: 'Low' },
+                { value: 'ok', emoji: '😊', label: 'Okay' },
+                { value: 'good', emoji: '😄', label: 'Good' }
+            ];
+
+            const handleSubmit = async () => {
+                if (!input.trim() && !mood) return;
+
+                const userText = input || `I am feeling ${mood} today`;
+                setMessages(prev => [...prev, { type: 'user', text: userText }]);
+                setInput('');
+                setIsLoading(true);
+
+                try {
+                    const response = await fetch('/api/checkin', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userId: 'demo-user',
+                            input: userText
+                        })
+                    });
+                    const data = await response.json();
+
+                    setTimeout(() => {
+                        setMessages(prev => [...prev, {
+                            type: 'amily',
+                            text: data.summary || "I am here for you."
+                        }]);
+                        setIsLoading(false);
+                    }, 500);
+                } catch (error) {
+                    setMessages(prev => [...prev, {
+                        type: 'amily',
+                        text: "I am here for you. Let us take this one step at a time."
+                    }]);
+                    setIsLoading(false);
+                }
+            };
+
+            return (
+                <section id="checkin" className="relative py-20">
+                    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex flex-col gap-3 mb-8 text-center sm:text-left">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-[0.26em] mx-auto sm:mx-0 bg-black/5 backdrop-blur-sm">
+                                <CalendarIcon />
+                                <span className={darkMode ? 'text-amber-200' : 'text-amber-600'}>Daily emotional check-in</span>
+                            </div>
+                            <div className="space-y-1">
+                                <h2 className={`font-display text-3xl sm:text-4xl font-bold ${
+                                    darkMode ? 'text-slate-50' : 'text-slate-900'
+                                }`}>
+                                    How are you really feeling today?
+                                </h2>
+                                <p className={darkMode ? 'text-slate-400 text-sm sm:text-base' : 'text-slate-600 text-sm sm:text-base'}>
+                                    Amily turns your mood and thoughts into a gentle plan for the day – at your pace, in your own words.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div
+                            className={`grid gap-8 lg:grid-cols-[minmax(0,0.9fr),minmax(0,1.1fr)] rounded-3xl border shadow-2xl overflow-hidden backdrop-blur-xl ${
+                                darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/90 border-rose-100'
+                            }`}
+                        >
+                            <div className="p-6 sm:p-7 border-b lg:border-b-0 lg:border-r border-white/10 flex flex-col justify-between">
+                                <div className="space-y-5">
+                                    <p className={darkMode ? 'text-slate-300 text-sm' : 'text-slate-700 text-sm'}>
+                                        Tap the face that feels closest to today, or tell Amily in your own words.
+                                    </p>
+                                    <div className="flex gap-3 mb-2 justify-center lg:justify-start flex-wrap">
+                                        {moods.map((m) => (
+                                            <button
+                                                key={m.value}
+                                                onClick={() => setMood(m.value)}
+                                                className={`flex flex-col items-center gap-2 px-5 py-4 rounded-2xl border transition-all duration-200 text-sm ${
+                                                    mood === m.value
+                                                        ? darkMode
+                                                            ? 'border-amber-400 bg-amber-500/10 scale-105 shadow-lg'
+                                                            : 'border-amber-500 bg-amber-50 scale-105 shadow-lg'
+                                                        : darkMode
+                                                            ? 'border-slate-700 bg-slate-950 hover:border-amber-400 hover:bg-slate-900'
+                                                            : 'border-slate-200 bg-white hover:border-amber-300 hover:bg-amber-50'
+                                                }`}
+                                            >
+                                                <span className="text-3xl">{m.emoji}</span>
+                                                <span className={darkMode ? 'text-slate-100 font-medium' : 'text-slate-800 font-medium'}>
+                                                    {m.label}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 space-y-3">
+                                    <label
+                                        className={darkMode ? 'text-slate-300 text-xs font-medium uppercase tracking-[0.2em]' : 'text-slate-500 text-xs font-medium uppercase tracking-[0.2em]'}
+                                    >
+                                        Tell Amily about your day
+                                    </label>
+                                    <div className="flex gap-3 flex-wrap">
+                                        <input
+                                            type="text"
+                                            value={input}
+                                            onChange={(e) => setInput(e.target.value)}
+                                            onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
+                                            placeholder="For example: I did not sleep well last night, and I feel a bit tired..."
+                                            className={`flex-1 min-w-48 px-5 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/60 ${
+                                                darkMode
+                                                    ? 'border border-slate-700 bg-slate-950 text-slate-100 placeholder-slate-500'
+                                                    : 'border border-slate-200 bg-white text-slate-900 placeholder-slate-400'
+                                            }`}
+                                        />
+                                        <button
+                                            onClick={handleSubmit}
+                                            disabled={isLoading}
+                                            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-white text-sm font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <SendIcon />
+                                            Share with Amily
+                                        </button>
+                                    </div>
+                                    <p className={darkMode ? 'text-[11px] text-slate-500' : 'text-[11px] text-slate-500'}>
+                                        Amily responds slowly and gently, like a caring friend – never rushing you.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="p-6 sm:p-7">
+                                <div
+                                    className={`rounded-2xl p-4 sm:p-5 max-h-80 overflow-y-auto space-y-4 text-sm bg-gradient-to-b ${
+                                        darkMode
+                                            ? 'from-slate-950/90 via-slate-950/70 to-slate-900/60 border border-slate-800'
+                                            : 'from-amber-50 via-white to-amber-50/80 border border-amber-100'
+                                    }`}
+                                >
+                                    {messages.map((msg, idx) => (
+                                        <div
+                                            key={idx}
+                                            className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                                        >
+                                            <div
+                                                className={`max-w-md rounded-2xl px-4 py-3 shadow-md ${
+                                                    msg.type === 'user'
+                                                        ? darkMode
+                                                            ? 'bg-slate-950 border border-slate-700 text-slate-100'
+                                                            : 'bg-white border border-slate-200 text-slate-800'
+                                                        : 'bg-gradient-to-br from-amber-500 to-orange-500 text-white'
+                                                }`}
+                                            >
+                                                <div className="font-semibold text-[11px] mb-1 opacity-75">
+                                                    {msg.type === 'user' ? 'You' : 'Amily'}
+                                                </div>
+                                                <div className="leading-relaxed">{msg.text}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {isLoading && (
+                                        <div className="flex justify-start">
+                                            <div className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-md">
+                                                <div className="w-2 h-2 bg-white rounded-full animate-bounce" />
+                                                <div className="w-2 h-2 bg-white rounded-full animate-bounce animation-delay-200" />
+                                                <div className="w-2 h-2 bg-white rounded-full animate-bounce animation-delay-400" />
+                                                <span className="text-xs">Amily is thinking...</span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        // SafetyDemo Component
+        function SafetyDemo({ darkMode}) {
+            const [messages, setMessages] = useState([]);
+
+            const triggerSafety = async (phrase) => {
+                const alertMsg = {
+                    type: 'alert',
+                    title: '🚨 EMERGENCY ALERT',
+                    message: phrase
+                };
+                setMessages(prev => [...prev, alertMsg]);
+
+                try {
+                    const response = await fetch('/api/safety/emergency', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: 'demo-user', type: 'manual', location: { lat: 40.7128, lng: -74.0060 } })
+                    });
+                    const data = await response.json();
+
+                    setTimeout(() => {
+                        setMessages(prev => [...prev, {
+                            type: 'response',
+                            title: 'Care Circle Notified',
+                            message: data.message || 'Caregivers have been notified'
+                        }]);
+                    }, 500);
+                } catch (error) {
+                    console.error('Safety check failed:', error);
+                }
+            };
+
+            const emergencyScenarios = [
+                { phrase: 'I need help', icon: PhoneIcon, color: 'from-red-600 to-rose-600', label: 'Need Help' },
+                { phrase: 'I feel dizzy', icon: AlertTriangleIcon, color: 'from-orange-600 to-red-600', label: 'Feel Dizzy' },
+                { phrase: 'I fell down', icon: AlertTriangleIcon, color: 'from-rose-600 to-pink-600', label: 'Fall Detected' }
+            ];
+
+            return (
+                <section id="safety" className="relative py-20">
+                    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex flex-col gap-3 mb-8 text-center sm:text-left">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-[0.26em] mx-auto sm:mx-0 bg-black/5 backdrop-blur-sm">
+                                <ShieldIcon />
+                                <span className={darkMode ? 'text-rose-200' : 'text-rose-600'}>Emergency & safety</span>
+                            </div>
+                            <div className="space-y-1">
+                                <h2 className={`font-display text-3xl sm:text-4xl font-bold ${
+                                    darkMode ? 'text-slate-50' : 'text-slate-900'
+                                }`}>
+                                    If something feels wrong, one tap is enough.
+                                </h2>
+                                <p className={darkMode ? 'text-slate-400 text-sm sm:text-base' : 'text-slate-600 text-sm sm:text-base'}>
+                                    Amily spots worrying phrases and alerts your care circle – so no cry for help is missed.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div
+                            className={`rounded-3xl border shadow-2xl overflow-hidden backdrop-blur-xl ${
+                                darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/90 border-rose-100'
+                            }`}
+                        >
+                            <div className="p-6 sm:p-8 border-b border-white/10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-red-500 to-rose-500 flex items-center justify-center text-white shadow-lg">
+                                        <ShieldIcon />
+                                    </div>
+                                    <div>
+                                        <h3 className={darkMode ? 'text-slate-50 text-lg font-semibold' : 'text-slate-900 text-lg font-semibold'}>
+                                            Safety Intelligence
+                                        </h3>
+                                        <p className={darkMode ? 'text-rose-200 text-xs' : 'text-rose-500 text-xs'}>
+                                            Instant routing to emergency workflows and caregivers.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 text-xs text-rose-200/80">
+                                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/15 text-red-200">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping" />
+                                        High-risk phrases monitored
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="p-6 sm:p-8 grid gap-8 lg:grid-cols-[minmax(0,1.1fr),minmax(0,0.9fr)]">
+                                <div className="space-y-6">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        {emergencyScenarios.map((scenario, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => triggerSafety(scenario.phrase)}
+                                                className={`group relative overflow-hidden p-5 rounded-2xl bg-gradient-to-br ${scenario.color} text-white shadow-lg hover:shadow-2xl transform hover:scale-[1.03] active:scale-[0.99] transition-all duration-200`}
+                                            >
+                                                <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                <div className="relative flex flex-col items-center gap-2">
+                                                    <div className="w-10 h-10 rounded-2xl bg-black/10 flex items-center justify-center">
+                                                        <scenario.icon />
+                                                    </div>
+                                                    <div className="font-semibold text-sm text-center">{scenario.label}</div>
+                                                    <span className="text-[11px] opacity-80">Tap to trigger help</span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    <div
+                                        className={`rounded-2xl p-5 border text-sm bg-gradient-to-br ${
+                                            darkMode ? 'from-slate-950/90 via-slate-900/70 to-slate-900/60 border-rose-500/40' : 'from-rose-50 via-white to-rose-50/70 border-rose-200'
+                                        }`}
+                                    >
+                                        <h4 className={darkMode ? 'text-rose-100 text-sm font-semibold mb-3' : 'text-rose-600 text-sm font-semibold mb-3'}>
+                                            What Amily watches for
+                                        </h4>
+                                        <div className="grid md:grid-cols-2 gap-3">
+                                            {[
+                                                'Phrases like “I fell”, “I need help”, or “I feel dizzy”.',
+                                                'Patterns of low mood or worrying check-ins.',
+                                                'Signals from vitals or connected wearables.',
+                                                'Silence after a distress message is sent.',
+                                            ].map((item, idx) => (
+                                                <div key={idx} className="flex items-start gap-2 text-xs sm:text-sm">
+                                                    <span className="mt-1 w-1.5 h-1.5 rounded-full bg-rose-400" />
+                                                    <span className={darkMode ? 'text-slate-200' : 'text-slate-700'}>{item}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {messages.length > 0 && (
+                                        <div
+                                            className={`rounded-2xl p-5 border text-sm space-y-4 bg-gradient-to-b ${
+                                                darkMode ? 'from-slate-950/90 via-slate-900/75 to-slate-900/60 border-red-500/40' : 'from-red-50 via-white to-rose-50/80 border-red-200'
+                                            }`}
+                                        >
+                                            {messages.map((msg, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    className={`p-4 rounded-2xl border-l-4 shadow-md animate-slideIn ${
+                                                        msg.type === 'alert'
+                                                            ? darkMode
+                                                                ? 'bg-red-900/40 border-red-500 text-red-50'
+                                                                : 'bg-red-50 border-red-500'
+                                                            : darkMode
+                                                                ? 'bg-rose-900/40 border-rose-500 text-rose-50'
+                                                                : 'bg-rose-50 border-rose-500'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <div
+                                                            className={`font-bold text-sm ${
+                                                                darkMode ? 'text-red-100' : 'text-red-600'
+                                                            }`}
+                                                        >
+                                                            {msg.title}
+                                                        </div>
+                                                        <span className="text-[11px] opacity-75">
+                                                            Care circle notified
+                                                        </span>
+                                                    </div>
+                                                    <div className={darkMode ? 'text-slate-100 text-sm' : 'text-slate-700 text-sm'}>
+                                                        {msg.message}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <div className="text-[11px] sm:text-xs text-slate-500 space-y-1">
+                                        <p>
+                                            Amily does not replace emergency services. In an emergency, always call your
+                                            local emergency number first.
+                                        </p>
+                                        <p>
+                                            Safety alerts are routed to your configured caregivers and workflows, with a
+                                            clear, gentle message.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        // WellnessDemo Component
+        function WellnessDemo({ darkMode }) {
+            const [nudges, setNudges] = useState(['💊 Time to take your medication', '💧 Do not forget to hydrate', '🚶 A little walk would do you good']);
+            const [waterCount, setWaterCount] = useState(3);
+
+            const logActivity = async (type) => {
+                if (type === 'water') setWaterCount(prev => prev + 1);
+                alert('✓ Activity logged!');
+            };
+
+            const wellnessActions = [
+                { type: 'water', icon: DropletsIcon, label: 'Drank Water', color: 'from-blue-500 to-cyan-500' },
+                { type: 'medication', icon: PillIcon, label: 'Took Meds', color: 'from-purple-500 to-pink-500' },
+                { type: 'activity', icon: ActivityIcon, label: 'Did Activity', color: 'from-emerald-500 to-teal-500' }
+            ];
+
+            return (
+                <section id="wellness" className="relative py-20">
+                    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex flex-col gap-3 mb-8 text-center sm:text-left">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-[0.26em] mx-auto sm:mx-0 bg-black/5 backdrop-blur-sm">
+                                <ActivityIcon />
+                                <span className={darkMode ? 'text-sky-200' : 'text-sky-600'}>Gentle wellness nudges</span>
+                            </div>
+                            <div className="space-y-1">
+                                <h2 className={`font-display text-3xl sm:text-4xl font-bold ${
+                                    darkMode ? 'text-slate-50' : 'text-slate-900'
+                                }`}>
+                                    Tiny reminders that keep you feeling steady.
+                                </h2>
+                                <p className={darkMode ? 'text-slate-400 text-sm sm:text-base' : 'text-slate-600 text-sm sm:text-base'}>
+                                    Amily keeps track of water, medication, and movement – always in a gentle, non-judgmental way.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div
+                            className={`rounded-3xl border shadow-2xl overflow-hidden backdrop-blur-xl ${
+                                darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/90 border-sky-100'
+                            }`}
+                        >
+                            <div className="p-6 sm:p-8 grid gap-8 lg:grid-cols-[minmax(0,1.2fr),minmax(0,0.8fr)]">
+                                <div className="space-y-6">
+                                    <div
+                                        className={`rounded-2xl p-5 border text-sm bg-gradient-to-br ${
+                                            darkMode ? 'from-sky-950/80 via-slate-900/80 to-slate-900/70 border-sky-500/40' : 'from-sky-50 via-white to-sky-50/80 border-sky-200'
+                                        }`}
+                                    >
+                                        <h3 className={darkMode ? 'text-sky-100 text-sm font-semibold mb-4' : 'text-sky-700 text-sm font-semibold mb-4'}>
+                                            Today’s gentle reminders
+                                        </h3>
+                                        <div className="space-y-3">
+                                            {nudges.map((nudge, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    className="flex items-start gap-3 p-3 rounded-xl bg-black/5 border border-white/5 shadow-sm"
+                                                >
+                                                    <span className="text-lg">{nudge.charAt(0)}</span>
+                                                    <p className={darkMode ? 'text-slate-100 text-sm' : 'text-slate-800 text-sm'}>
+                                                        {nudge.slice(2)}
+                                                    </p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        {wellnessActions.map((action) => (
+                                            <button
+                                                key={action.type}
+                                                onClick={() => logActivity(action.type)}
+                                                className={`group p-5 rounded-2xl bg-gradient-to-br ${action.color} text-white shadow-lg hover:shadow-2xl transform hover:scale-[1.03] active:scale-[0.99] transition-all duration-200 flex flex-col items-center gap-2`}
+                                            >
+                                                <div className="w-10 h-10 rounded-2xl bg-black/10 flex items-center justify-center">
+                                                    <action.icon />
+                                                </div>
+                                                <div className="font-semibold text-center text-sm">{action.label}</div>
+                                                <span className="text-[11px] opacity-80 group-hover:opacity-100">
+                                                    Tap to log
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        {[
+                                            { value: waterCount, label: 'Glasses of water' },
+                                            { value: '✓', label: 'Morning medication' },
+                                            { value: '72°F', label: 'Local temperature' },
+                                            { value: '☀️', label: 'Today’s weather' },
+                                        ].map((stat, idx) => (
+                                            <div
+                                                key={idx}
+                                                className={`rounded-2xl p-4 text-center shadow-md border bg-gradient-to-br ${
+                                                    darkMode ? 'from-slate-950/90 via-slate-900/80 to-slate-900/70 border-slate-700' : 'from-slate-50 via-white to-slate-50/80 border-slate-200'
+                                                }`}
+                                            >
+                                                <div
+                                                    className={`text-2xl font-bold mb-1 ${
+                                                        darkMode ? 'text-sky-300' : 'text-sky-600'
+                                                    }`}
+                                                >
+                                                    {stat.value}
+                                                </div>
+                                                <div className={darkMode ? 'text-[11px] text-slate-300' : 'text-[11px] text-slate-600'}>
+                                                    {stat.label}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className={darkMode ? 'text-[11px] text-slate-500' : 'text-[11px] text-slate-500'}>
+                                        Amily will never scold or guilt-trip – every nudge is phrased with kindness and
+                                        respect.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        // MemoryDemo Component
+        function MemoryDemo({ darkMode }) {
+            const [input, setInput] = useState('');
+            const [memories, setMemories] = useState([
+                {
+                    title: 'The Old Oak Tree',
+                    era: 'Childhood, 1950s',
+                    story: 'There was this big oak tree behind our house. My brother and I would climb it every summer. We had sit up there for hours, watching the world go by.'
+                }
+            ]);
+
+            const saveMemory = async () => {
+                if (!input.trim()) {
+                    alert('Please share a memory first...');
+                    return;
+                }
+
+                setMemories(prev => [{
+                    title: 'New Memory',
+                    era: new Date().getFullYear().toString(),
+                    story: input
+                }, ...prev]);
+                setInput('');
+                alert('✓ Memory saved');
+            };
+
+            return (
+                <section id="memories" className="relative py-20">
+                    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex flex-col gap-3 mb-8 text-center sm:text-left">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-[0.26em] mx-auto sm:mx-0 bg-black/5 backdrop-blur-sm">
+                                <BookOpenIcon />
+                                <span className={darkMode ? 'text-violet-200' : 'text-violet-600'}>MemoryLane</span>
+                            </div>
+                            <div className="space-y-1">
+                                <h2 className={`font-display text-3xl sm:text-4xl font-bold ${
+                                    darkMode ? 'text-slate-50' : 'text-slate-900'
+                                }`}>
+                                    Capture the stories that make you, you.
+                                </h2>
+                                <p className={darkMode ? 'text-slate-400 text-sm sm:text-base' : 'text-slate-600 text-sm sm:text-base'}>
+                                    Amily turns your memories into beautiful, structured stories that families can revisit together.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div
+                            className={`rounded-3xl border shadow-2xl overflow-hidden backdrop-blur-xl ${
+                                darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/90 border-violet-100'
+                            }`}
+                        >
+                            <div className="p-6 sm:p-8 grid gap-8 lg:grid-cols-[minmax(0,1.1fr),minmax(0,0.9fr)]">
+                                <div className="space-y-4">
+                                    <label
+                                        className={darkMode ? 'text-slate-300 text-xs font-medium uppercase tracking-[0.2em]' : 'text-slate-500 text-xs font-medium uppercase tracking-[0.2em]'}
+                                    >
+                                        Share a memory with Amily
+                                    </label>
+                                    <textarea
+                                        value={input}
+                                        onChange={(e) => setInput(e.target.value)}
+                                        rows={6}
+                                        placeholder="For example: When I was a child, my brother and I would climb the big oak tree behind our house every summer..."
+                                        className={`w-full px-6 py-4 rounded-2xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-violet-400/60 ${
+                                            darkMode
+                                                ? 'border border-slate-700 bg-slate-950 text-slate-100 placeholder-slate-500'
+                                                : 'border border-slate-200 bg-white text-slate-900 placeholder-slate-400'
+                                        }`}
+                                    />
+                                    <button
+                                        onClick={saveMemory}
+                                        className="inline-flex items-center gap-2 px-7 py-3 bg-gradient-to-r from-purple-500 to-violet-500 text-white rounded-2xl text-sm font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+                                    >
+                                        <SaveIcon />
+                                        Save this memory
+                                    </button>
+                                    <p className={darkMode ? 'text-[11px] text-slate-500' : 'text-[11px] text-slate-500'}>
+                                        Amily gently extracts a title, time period, and summary – so your story is easy to revisit later.
+                                    </p>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <h3 className={darkMode ? 'text-slate-100 text-sm font-semibold' : 'text-slate-900 text-sm font-semibold'}>
+                                        Your saved memories
+                                    </h3>
+                                    <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
+                                        {memories.map((memory, idx) => (
+                                            <div
+                                                key={idx}
+                                                className={`p-5 rounded-2xl border-l-4 border-purple-500 shadow-md bg-gradient-to-br ${
+                                                    darkMode ? 'from-purple-950/80 via-slate-950/70 to-slate-900/70' : 'from-purple-50 via-white to-violet-50/80'
+                                                }`}
+                                            >
+                                                <h4 className={darkMode ? 'text-purple-200 text-base font-semibold mb-1' : 'text-purple-700 text-base font-semibold mb-1'}>
+                                                    {memory.title}
+                                                </h4>
+                                                <div className={darkMode ? 'text-[11px] text-slate-400 mb-2' : 'text-[11px] text-slate-500 mb-2'}>
+                                                    {memory.era}
+                                                </div>
+                                                <p className={darkMode ? 'text-slate-100 text-sm leading-relaxed' : 'text-slate-700 text-sm leading-relaxed'}>
+                                                    {memory.story}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        // EmpathyDemo Component
+        function EmpathyDemo({ darkMode }) {
+            const [messages, setMessages] = useState([]);
+            const [input, setInput] = useState('');
+            const [isLoading, setIsLoading] = useState(false);
+
+            const sendMessage = async () => {
+                if (!input.trim()) return;
+
+                const userText = input;
+                setMessages(prev => [...prev, { type: 'user', text: userText }]);
+                setInput('');
+                setIsLoading(true);
+
+                try {
+                    const response = await fetch('/api/empathy', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId: 'demo-user', input: userText })
+                    });
+                    const data = await response.json();
+
+                    setTimeout(() => {
+                        setMessages(prev => [...prev, { type: 'amily', text: data.summary || 'I am here for you' }]);
+                        setIsLoading(false);
+                    }, 500);
+                } catch (error) {
+                    setMessages(prev => [...prev, {
+                        type: 'amily',
+                        text: "I am here for you. Let me listen..."
+                    }]);
+                    setIsLoading(false);
+                }
+            };
+
+            return (
+                <section id="empathy" className="relative py-20">
+                    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex flex-col gap-3 mb-8 text-center sm:text-left">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-[0.26em] mx-auto sm:mx-0 bg-black/5 backdrop-blur-sm">
+                                <HeartIcon />
+                                <span className={darkMode ? 'text-rose-200' : 'text-rose-600'}>Empathetic support</span>
+                            </div>
+                            <div className="space-y-1">
+                                <h2 className={`font-display text-3xl sm:text-4xl font-bold ${
+                                    darkMode ? 'text-slate-50' : 'text-slate-900'
+                                }`}>
+                                    A calm voice when things feel heavy.
+                                </h2>
+                                <p className={darkMode ? 'text-slate-400 text-sm sm:text-base' : 'text-slate-600 text-sm sm:text-base'}>
+                                    Amily listens carefully, reflects your feelings back, and answers with warmth – especially on difficult days.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div
+                            className={`rounded-3xl border shadow-2xl overflow-hidden backdrop-blur-xl ${
+                                darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/90 border-rose-100'
+                            }`}
+                        >
+                            <div className="p-6 sm:p-8 grid gap-8 lg:grid-cols-[minmax(0,1.1fr),minmax(0,0.9fr)]">
+                                <div className="space-y-4">
+                                    <label
+                                        className={darkMode ? 'text-slate-300 text-xs font-medium uppercase tracking-[0.2em]' : 'text-slate-500 text-xs font-medium uppercase tracking-[0.2em]'}
+                                    >
+                                        Tell Amily how you are feeling
+                                    </label>
+                                    <div className="flex gap-3 flex-wrap">
+                                        <input
+                                            type="text"
+                                            value={input}
+                                            onChange={(e) => setInput(e.target.value)}
+                                            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                                            placeholder="For example: I feel anxious tonight and I cannot sleep..."
+                                            className={`flex-1 min-w-48 px-6 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-400/60 ${
+                                                darkMode
+                                                    ? 'border border-slate-700 bg-slate-950 text-slate-100 placeholder-slate-500'
+                                                    : 'border border-slate-200 bg-white text-slate-900 placeholder-slate-400'
+                                            }`}
+                                        />
+                                        <button
+                                            onClick={sendMessage}
+                                            disabled={isLoading}
+                                            className="inline-flex items-center gap-2 px-7 py-3 bg-gradient-to-r from-rose-500 to-red-500 text-white rounded-2xl text-sm font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            <SendIcon />
+                                            Share with Amily
+                                        </button>
+                                    </div>
+                                    <p className={darkMode ? 'text-[11px] text-slate-500' : 'text-[11px] text-slate-500'}>
+                                        There are no “wrong” feelings here. Amily’s responses are always gentle and non‑judgmental.
+                                    </p>
+
+                                    <div
+                                        className={`rounded-2xl p-5 border text-xs bg-gradient-to-br ${
+                                            darkMode ? 'from-rose-950/80 via-slate-950/80 to-slate-900/70 border-rose-500/40' : 'from-rose-50 via-white to-red-50/80 border-rose-200'
+                                        }`}
+                                    >
+                                        <h3 className={darkMode ? 'text-rose-100 text-xs font-semibold mb-2' : 'text-rose-700 text-xs font-semibold mb-2'}>
+                                            How Amily responds
+                                        </h3>
+                                        <ul className="list-disc list-inside space-y-1">
+                                            <li className={darkMode ? 'text-slate-200' : 'text-slate-700'}>
+                                                Detects your emotional tone (sad, anxious, hopeful, calm…)
+                                            </li>
+                                            <li className={darkMode ? 'text-slate-200' : 'text-slate-700'}>
+                                                Crafts a short, soothing response in simple language
+                                            </li>
+                                            <li className={darkMode ? 'text-slate-200' : 'text-slate-700'}>
+                                                Optionally speaks the response aloud with soft pacing
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div
+                                        className={`rounded-2xl p-5 min-h-64 max-h-80 overflow-y-auto space-y-4 text-sm bg-gradient-to-b ${
+                                            darkMode ? 'from-slate-950/90 via-slate-900/75 to-slate-900/60 border border-slate-800' : 'from-rose-50 via-white to-rose-50/80 border border-rose-100'
+                                        }`}
+                                    >
+                                        {messages.length === 0 ? (
+                                            <div className="text-center py-10">
+                                                <p className={darkMode ? 'text-slate-400 text-sm' : 'text-slate-500 text-sm'}>
+                                                    Share what is on your heart. Amily will answer softly and slowly.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            messages.map((msg, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}
+                                                >
+                                                    <div
+                                                        className={`max-w-md rounded-2xl px-4 py-3 shadow-md ${
+                                                            msg.type === 'user'
+                                                                ? darkMode
+                                                                    ? 'bg-slate-950 border border-slate-700 text-slate-100'
+                                                                    : 'bg-white border border-slate-200 text-slate-800'
+                                                                : 'bg-gradient-to-br from-rose-500 to-red-500 text-white'
+                                                        }`}
+                                                    >
+                                                        <div
+                                                            className={`font-semibold text-[11px] mb-1 opacity-80 ${
+                                                                darkMode && msg.type === 'user' ? 'text-slate-300' : ''
+                                                            }`}
+                                                        >
+                                                            {msg.type === 'user' ? 'You' : 'Amily'}
+                                                        </div>
+                                                        <div className="leading-relaxed">{msg.text}</div>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                        {isLoading && (
+                                            <div className="flex justify-start">
+                                                <div className="inline-flex items-center gap-2 px-4 py-3 rounded-2xl bg-gradient-to-br from-rose-500 to-red-500 text-white shadow-md">
+                                                    <div className="w-2 h-2 bg-white rounded-full animate-bounce" />
+                                                    <div className="w-2 h-2 bg-white rounded-full animate-bounce animation-delay-200" />
+                                                    <div className="w-2 h-2 bg-white rounded-full animate-bounce animation-delay-400" />
+                                                    <span className="text-xs">Amily is forming a gentle reply...</span>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+                                        {[
+                                            { value: '7', label: 'Check-ins this week' },
+                                            { value: '12', label: 'Memories saved' },
+                                            { value: '5', label: 'Friends connected' },
+                                            { value: '85%', label: 'Wellness score' },
+                                        ].map((stat, idx) => (
+                                            <div
+                                                key={idx}
+                                                className={`rounded-2xl p-4 text-center shadow-md border bg-gradient-to-br ${
+                                                    darkMode ? 'from-slate-950/90 via-slate-900/80 to-slate-900/70 border-rose-500/40' : 'from-rose-50 via-white to-red-50/80 border-rose-100'
+                                                }`}
+                                            >
+                                                <div className={darkMode ? 'text-rose-200 text-xl font-bold mb-1' : 'text-rose-600 text-xl font-bold mb-1'}>
+                                                    {stat.value}
+                                                </div>
+                                                <div className={darkMode ? 'text-[11px] text-slate-300' : 'text-[11px] text-slate-600'}>
+                                                    {stat.label}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        // Login Page
+        function LoginPage({ darkMode, onAuthSuccess }) {
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [status, setStatus] = useState(null);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setStatus({ type: 'loading', message: 'Logging you in…' });
+
+                try {
+                    const res = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, password }),
+                    });
+                    const data = await res.json();
+
+                    if (!res.ok || !data.success) {
+                        setStatus({ type: 'error', message: data.error || 'Could not log you in.' });
+                    } else {
+                        setStatus({ type: 'success', message: 'Logged in successfully.' });
+                        if (onAuthSuccess) onAuthSuccess(data.user?.fullName || data.user?.name || email.split('@')[0]);
+                    }
+                } catch (err) {
+                    setStatus({ type: 'error', message: 'Network error while logging in.' });
+                }
+            };
+
+            return (
+                <section id="login" className="relative py-20">
+                    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex flex-col gap-3 mb-8 text-center sm:text-left">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-[0.26em] mx-auto sm:mx-0 bg-black/5 backdrop-blur-sm">
+                                <UsersIcon />
+                                <span className={darkMode ? 'text-slate-200' : 'text-slate-700'}>Welcome back</span>
+                            </div>
+                            <div className="space-y-1">
+                                <h2 className={`font-display text-3xl sm:text-4xl font-bold ${
+                                    darkMode ? 'text-slate-50' : 'text-slate-900'
+                                }`}>
+                                    Log in to your Amily space.
+                                </h2>
+                                <p className={darkMode ? 'text-slate-400 text-sm sm:text-base' : 'text-slate-600 text-sm sm:text-base'}>
+                                    Continue where you left off with check-ins, memories, and your care circle.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div
+                            className={`rounded-3xl border shadow-2xl overflow-hidden backdrop-blur-xl ${
+                                darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/90 border-slate-100'
+                            }`}
+                        >
+                            <div className="grid gap-0 md:grid-cols-[minmax(0,1.1fr),minmax(0,0.9fr)]">
+                                <div className="p-6 sm:p-8 border-b md:border-b-0 md:border-r border-white/10">
+                                    <form className="space-y-5" onSubmit={handleSubmit}>
+                                        <div className="space-y-2">
+                                            <label
+                                                className={darkMode ? 'text-slate-200 text-xs font-semibold uppercase tracking-[0.18em]' : 'text-slate-600 text-xs font-semibold uppercase tracking-[0.18em]'}
+                                            >
+                                                Email
+                                            </label>
+                                            <input
+                                                type="email"
+                                                required
+                                                value={email}
+                                                onChange={(e) => setEmail(e.target.value)}
+                                                placeholder="you@example.com"
+                                                className={`w-full px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-400/60 ${
+                                                    darkMode
+                                                        ? 'border border-slate-700 bg-slate-950 text-slate-100 placeholder-slate-500'
+                                                        : 'border border-slate-200 bg-white text-slate-900 placeholder-slate-400'
+                                                }`}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label
+                                                className={darkMode ? 'text-slate-200 text-xs font-semibold uppercase tracking-[0.18em]' : 'text-slate-600 text-xs font-semibold uppercase tracking-[0.18em]'}
+                                            >
+                                                Password
+                                            </label>
+                                            <input
+                                                type="password"
+                                                required
+                                                value={password}
+                                                onChange={(e) => setPassword(e.target.value)}
+                                                placeholder="Enter your password"
+                                                className={`w-full px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-rose-400/60 ${
+                                                    darkMode
+                                                        ? 'border border-slate-700 bg-slate-950 text-slate-100 placeholder-slate-500'
+                                                        : 'border border-slate-200 bg-white text-slate-900 placeholder-slate-400'
+                                                }`}
+                                            />
+                                        </div>
+                                        <div className="flex items-center justify-between text-[11px] text-slate-400">
+                                            <label className="inline-flex items-center gap-2 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    className="rounded border-slate-600 bg-slate-950 text-rose-500 focus:ring-rose-500/60"
+                                                />
+                                                <span>Keep me logged in</span>
+                                            </label>
+                                            <button
+                                                type="button"
+                                                className="text-rose-300 hover:text-rose-200 underline-offset-4 hover:underline"
+                                            >
+                                                Forgot password?
+                                            </button>
+                                        </div>
+                                        {status && (
+                                            <div
+                                                className={`text-xs rounded-2xl px-3 py-2 ${
+                                                    status.type === 'success'
+                                                        ? 'bg-emerald-900/40 text-emerald-200 border border-emerald-500/40'
+                                                        : status.type === 'error'
+                                                        ? 'bg-red-900/40 text-red-100 border border-red-500/40'
+                                                        : 'bg-slate-900/40 text-slate-200 border border-slate-700/40'
+                                                }`}
+                                            >
+                                                {status.message}
+                                            </div>
+                                        )}
+                                        <button
+                                            type="submit"
+                                            className="mt-2 inline-flex w-full items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-rose-500 to-orange-500 text-white rounded-2xl text-sm font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+                                        >
+                                            Log in
+                                        </button>
+                                        <p className="text-[11px] text-slate-500 text-center">
+                                            By logging in, you agree to use Amily gently and respectfully.
+                                        </p>
+                                    </form>
+                                </div>
+
+                                <div className="p-6 sm:p-8 text-sm bg-gradient-to-b from-rose-500/20 via-slate-950/60 to-slate-950/90 border-t md:border-t-0 md:border-l border-white/10 flex flex-col justify-between">
+                                    <div className="space-y-4">
+                                        <h3 className="text-slate-50 text-sm font-semibold">
+                                            Designed for older adults and their families
+                                        </h3>
+                                        <ul className="space-y-2 text-xs text-slate-200">
+                                            <li>• Large, legible text and calm colors.</li>
+                                            <li>• Simple, predictable navigation between sections.</li>
+                                            <li>• Supportive language that never feels robotic or cold.</li>
+                                        </ul>
+                                    </div>
+                                    <div className="mt-6 text-[11px] text-slate-400">
+                                        Have not set up an account yet? Use the Sign up tab to create a shared space for
+                                        your family.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        // Signup Page
+        function SignupPage({ darkMode, onAuthSuccess }) {
+            const [fullName, setFullName] = useState('');
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [confirmPassword, setConfirmPassword] = useState('');
+            const [supportedPerson, setSupportedPerson] = useState('Me');
+            const [accepted, setAccepted] = useState(false);
+            const [status, setStatus] = useState(null);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+
+                if (password !== confirmPassword) {
+                    setStatus({ type: 'error', message: 'Passwords do not match.' });
+                    return;
+                }
+
+                if (!accepted) {
+                    setStatus({ type: 'error', message: 'Please accept the understanding statement.' });
+                    return;
+                }
+
+                setStatus({ type: 'loading', message: 'Creating your account…' });
+
+                try {
+                    const res = await fetch('/api/auth/signup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email,
+                            password,
+                            fullName,
+                            supportedPerson,
+                        }),
+                    });
+                    const data = await res.json();
+
+                    if (!res.ok || !data.success) {
+                        setStatus({ type: 'error', message: data.error || 'Could not create your account.' });
+                    } else {
+                        setStatus({
+                            type: 'success',
+                            message: 'Account created. Please check your email to confirm, if required.',
+                        });
+                        if (onAuthSuccess) onAuthSuccess(fullName);
+                    }
+                } catch (err) {
+                    setStatus({ type: 'error', message: 'Network error while creating your account.' });
+                }
+            };
+
+            return (
+                <section id="signup" className="relative py-20">
+                    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <div className="flex flex-col gap-3 mb-8 text-center sm:text-left">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-[0.26em] mx-auto sm:mx-0 bg-black/5 backdrop-blur-sm">
+                                <UsersIcon />
+                                <span className={darkMode ? 'text-emerald-200' : 'text-emerald-700'}>Create an account</span>
+                            </div>
+                            <div className="space-y-1">
+                                <h2 className={`font-display text-3xl sm:text-4xl font-bold ${
+                                    darkMode ? 'text-slate-50' : 'text-slate-900'
+                                }`}>
+                                    Start your journey with Amily.
+                                </h2>
+                                <p className={darkMode ? 'text-slate-400 text-sm sm:text-base' : 'text-slate-600 text-sm sm:text-base'}>
+                                    Set up a safe, shared space where Amily can support you and your loved ones.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div
+                            className={`rounded-3xl border shadow-2xl overflow-hidden backdrop-blur-xl ${
+                                darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/90 border-emerald-100'
+                            }`}
+                        >
+                            <div className="p-6 sm:p-8">
+                                <form className="space-y-5 max-w-xl mx-auto" onSubmit={handleSubmit}>
+                                    <div className="space-y-2">
+                                        <label
+                                            className={darkMode ? 'text-slate-200 text-xs font-semibold uppercase tracking-[0.18em]' : 'text-slate-600 text-xs font-semibold uppercase tracking-[0.18em]'}
+                                        >
+                                            Full name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={fullName}
+                                            onChange={(e) => setFullName(e.target.value)}
+                                            placeholder="For example: Maria Delgado"
+                                            className={`w-full px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/60 ${
+                                                darkMode
+                                                    ? 'border border-slate-700 bg-slate-950 text-slate-100 placeholder-slate-500'
+                                                    : 'border border-slate-200 bg-white text-slate-900 placeholder-slate-400'
+                                            }`}
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label
+                                            className={darkMode ? 'text-slate-200 text-xs font-semibold uppercase tracking-[0.18em]' : 'text-slate-600 text-xs font-semibold uppercase tracking-[0.18em]'}
+                                        >
+                                            Email
+                                        </label>
+                                        <input
+                                            type="email"
+                                            required
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            placeholder="you@example.com"
+                                            className={`w-full px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/60 ${
+                                                darkMode
+                                                    ? 'border border-slate-700 bg-slate-950 text-slate-100 placeholder-slate-500'
+                                                    : 'border border-slate-200 bg-white text-slate-900 placeholder-slate-400'
+                                            }`}
+                                        />
+                                    </div>
+                                    <div className="grid gap-4 sm:grid-cols-2">
+                                        <div className="space-y-2">
+                                            <label
+                                                className={darkMode ? 'text-slate-200 text-xs font-semibold uppercase tracking-[0.18em]' : 'text-slate-600 text-xs font-semibold uppercase tracking-[0.18em]'}
+                                            >
+                                                Password
+                                            </label>
+                                            <input
+                                                type="password"
+                                                required
+                                                value={password}
+                                                onChange={(e) => setPassword(e.target.value)}
+                                                placeholder="Create a password"
+                                                className={`w-full px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/60 ${
+                                                    darkMode
+                                                        ? 'border border-slate-700 bg-slate-950 text-slate-100 placeholder-slate-500'
+                                                        : 'border border-slate-200 bg-white text-slate-900 placeholder-slate-400'
+                                                }`}
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label
+                                                className={darkMode ? 'text-slate-200 text-xs font-semibold uppercase tracking-[0.18em]' : 'text-slate-600 text-xs font-semibold uppercase tracking-[0.18em]'}
+                                            >
+                                                Confirm password
+                                            </label>
+                                            <input
+                                                type="password"
+                                                required
+                                                value={confirmPassword}
+                                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                                placeholder="Repeat your password"
+                                                className={`w-full px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/60 ${
+                                                    darkMode
+                                                        ? 'border border-slate-700 bg-slate-950 text-slate-100 placeholder-slate-500'
+                                                        : 'border border-slate-200 bg-white text-slate-900 placeholder-slate-400'
+                                                }`}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label
+                                            className={darkMode ? 'text-slate-200 text-xs font-semibold uppercase tracking-[0.18em]' : 'text-slate-600 text-xs font-semibold uppercase tracking-[0.18em]'}
+                                        >
+                                            Who is Amily primarily supporting?
+                                        </label>
+                                        <select
+                                            value={supportedPerson}
+                                            onChange={(e) => setSupportedPerson(e.target.value)}
+                                            className={`w-full px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/60 ${
+                                                darkMode
+                                                    ? 'border border-slate-700 bg-slate-950 text-slate-100'
+                                                    : 'border border-slate-200 bg-white text-slate-900'
+                                            }`}
+                                        >
+                                            <option value="Me">Me</option>
+                                            <option value="My parent">My parent</option>
+                                            <option value="My grandparent">My grandparent</option>
+                                            <option value="Other loved one">Other loved one</option>
+                                        </select>
+                                    </div>
+                                    <div className="flex items-start gap-2 text-[11px] text-slate-400">
+                                        <input
+                                            type="checkbox"
+                                            required
+                                            checked={accepted}
+                                            onChange={(e) => setAccepted(e.target.checked)}
+                                            className="mt-0.5 rounded border-slate-600 bg-slate-950 text-emerald-500 focus:ring-emerald-500/60"
+                                        />
+                                        <span>
+                                            I understand that Amily is a supportive companion and does not provide medical,
+                                            legal, or crisis advice.
+                                        </span>
+                                    </div>
+                                    {status && (
+                                        <div
+                                            className={`text-xs rounded-2xl px-3 py-2 ${
+                                                status.type === 'success'
+                                                    ? 'bg-emerald-900/40 text-emerald-200 border border-emerald-500/40'
+                                                    : status.type === 'error'
+                                                    ? 'bg-red-900/40 text-red-100 border border-red-500/40'
+                                                    : 'bg-slate-900/40 text-slate-200 border border-slate-700/40'
+                                            }`}
+                                        >
+                                            {status.message}
+                                        </div>
+                                    )}
+                                    <button
+                                        type="submit"
+                                        className="mt-2 inline-flex w-full items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-2xl text-sm font-semibold shadow-lg hover:shadow-xl transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+                                    >
+                                        Create account
+                                    </button>
+                                    <p className="text-[11px] text-slate-500 text-center">
+                                        You can add caregivers and family members later from your settings.
+                                    </p>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            );
+        }
+
+        // Main App Component
+        function App() {
+            const [systemStatus] = useState('online');
+            const darkMode = true; // Always dark mode
+            const [currentPage, setCurrentPage] = useState('home');
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+            const [userName, setUserName] = useState('');
+
+            const handleNavigate = (pageId) => {
+                setCurrentPage(pageId);
+                // Scroll to top when changing "pages"
+                window.scrollTo(0, 0);
+            };
+
+            const features = [
+                {
+                    icon: ShieldIcon,
+                    title: 'Safety Intelligence',
+                    description: 'Emergency detection, vitals monitoring, and instant caregiver alerts',
+                    gradient: 'from-rose-500 to-pink-500'
+                },
+                {
+                    icon: PillIcon,
+                    title: 'Wellness Coaching',
+                    description: 'Medication reminders, hydration tracking, and weather-aware guidance',
+                    gradient: 'from-blue-500 to-cyan-500'
+                },
+                {
+                    icon: CalendarIcon,
+                    title: 'Daily Check-ins',
+                    description: 'Mood assessment and gentle planning for the day ahead',
+                    gradient: 'from-amber-500 to-orange-500'
+                },
+                {
+                    icon: BookOpenIcon,
+                    title: 'MemoryLane',
+                    description: 'Record and preserve precious life stories and memories',
+                    gradient: 'from-purple-500 to-violet-500'
+                },
+                {
+                    icon: UsersIcon,
+                    title: 'Buddy System',
+                    description: 'Safe social engagement with voice messages and support',
+                    gradient: 'from-emerald-500 to-teal-500'
+                },
+                {
+                    icon: HeartIcon,
+                    title: 'Empathetic Care',
+                    description: 'Emotion detection and warm, reassuring responses',
+                    gradient: 'from-rose-500 to-red-500'
+                }
+            ];
+
+            return (
+                <div className={`min-h-screen transition-colors duration-300 font-body ${
+                    darkMode 
+                        ? 'bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900' 
+                        : 'bg-gradient-to-br from-rose-50 via-white to-orange-50'
+                }`}>
+                    {isLoggedIn && (
+                        <Navigation
+                            systemStatus={systemStatus}
+                            darkMode={darkMode}
+                            currentPage={currentPage}
+                            onNavigate={handleNavigate}
+                            isLoggedIn={isLoggedIn}
+                            onLogout={() => {
+                                setIsLoggedIn(false);
+                                setCurrentPage('home');
+                            }}
+                        />
+                    )}
+
+                    <main className="relative">
+                        {currentPage === 'home' && (
+                            <>
+                                {isLoggedIn ? (
+                                    <LoggedInHome darkMode={darkMode} onNavigate={handleNavigate} userName={userName} />
+                                ) : (
+                                    <>
+                                        <Hero darkMode={darkMode} isLoggedIn={isLoggedIn} onNavigate={handleNavigate} />
+                                        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                                {features.map((feature, index) => (
+                                                    <FeatureCard key={index} {...feature} darkMode={darkMode} />
+                                                ))}
+                                            </div>
+                                        </section>
+                                    </>
+                                )}
+                            </>
+                        )}
+
+                        {currentPage === 'checkin' && <CheckInDemo darkMode={darkMode} />}
+                        {currentPage === 'safety' && <SafetyDemo darkMode={darkMode} />}
+                        {currentPage === 'wellness' && <WellnessDemo darkMode={darkMode} />}
+                        {currentPage === 'memories' && <MemoryDemo darkMode={darkMode} />}
+                        {currentPage === 'empathy' && <EmpathyDemo darkMode={darkMode} />}
+                        {currentPage === 'login' && (
+                            <LoginPage
+                                darkMode={darkMode}
+                                onAuthSuccess={(name) => {
+                                    setIsLoggedIn(true);
+                                    setUserName(name || 'User');
+                                    setCurrentPage('home');
+                                }}
+                            />
+                        )}
+                        {currentPage === 'signup' && (
+                            <SignupPage
+                                darkMode={darkMode}
+                                onAuthSuccess={(name) => {
+                                    setIsLoggedIn(true);
+                                    setUserName(name || 'User');
+                                    setCurrentPage('home');
+                                }}
+                            />
+                        )}
+
+                        <footer className="bg-gradient-to-r from-rose-500 to-orange-500 text-white py-12 mt-32">
+                            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                                <p className="text-lg font-medium mb-2">Built with care for those who deserve patience, dignity, and warmth.</p>
+                                <p className="text-rose-100">Version 1.0.0 | Amily Companion</p>
+                            </div>
+                        </footer>
+                    </main>
+                </div>
+            );
+        }
+
+        // Mount the app
+        const root = createRoot(document.getElementById('root'));
+        root.render(React.createElement(App));
+    </script>
+</body>
+</html>

@@ -1,104 +1,397 @@
-# amily
-Warm, voice-first companion for older adults. Includes Supabase persistence, ElevenLabs STT/TTS, Featherless.ai + Ollama fallback, and n8n automations.
+# 🌸 Amily - Digital Companion for Elderly Users
 
-## Features
-- Daily check-ins with audio upload/recording, ElevenLabs transcription, Featherless plan JSON, TTS playback, Utopia Meter, and history management.
-- MemoryLane timeline with audio capture, structured summaries, consented snippet sharing (n8n webhook) and RLS-backed snippets.
-- Buddy pairing with interest-based opt-in, streak badge, STT + summary for notes, and block/report safeguards.
-- Care Circle notifications via n8n, signed Supabase Storage for audio, and short-lived JWT auth.
-- Offline demo replay route that replays the last successful flow with no network.
+A gentle, patient, emotionally intelligent digital companion designed to reduce stress, create clarity, and make elderly users feel safe, understood, and never rushed.
 
-## Stack
-- **Backend**: Node 20 + Express + TypeScript + Supabase client. Rate limiting, schema validation (Zod), JWT auth, signed Supabase Storage URLs, ElevenLabs + Featherless + Ollama fallback orchestration.
-- **Frontend**: React 18 + Vite + React Query. Accessibility-first screens with warm tone, upload progress, screen reader labels.
-- **Infra**: Dockerfile + docker-compose (api + optional Ollama), Supabase SQL + RLS, n8n workflows, OpenAPI spec + Postman collection, Vitest tests.
+## Overview
 
-## Prerequisites
-- Node.js 20+
-- npm 9+
-- Supabase project + service role key and storage bucket `audio`
-- ElevenLabs + Featherless.ai credentials (and Ollama if offline fallback desired)
-- n8n instance for automations
+Amily provides calm guidance, conversation, and assistance through:
+- **Daily Check-ins** - Mood assessment and gentle planning
+- **MemoryLane** - Recording and preserving life stories
+- **Buddy System** - Safe social engagement with voice messages
+- **Care Circle** - High-level status notifications for caregivers
+- **Utopia Meter** - Engagement and activity tracking
 
-## Setup
-1. **Clone** the repo and copy env template:
-   ```bash
-   cp .env.example .env
-   ```
-2. **Fill environment variables** with Supabase keys, API secrets, webhook URLs, JWT secrets, etc.
-3. **Install dependencies** (workspace-aware):
-   ```bash
-   npm install
-   ```
-4. **Apply Supabase schema**:
-   ```bash
-   npx supabase login
-   npx supabase db push --file supabase/schema.sql
-   # or paste supabase/schema.sql in the SQL editor
-   ```
-   Create the private Storage bucket `audio` as described in `supabase/README.md`.
-5. **Seed demo data** (writes one user, two memories, buddy pair, two messages):
-   ```bash
-   npm run seed --workspace server
-   ```
-6. **Import n8n workflows** from `n8n/workflows/*.json`, set env vars (`N8N_FROM_EMAIL`, `CARE_*_EMAIL`), copy the resulting webhook URLs into `.env` (`N8N_WEBHOOK_CARECIRCLE_URL`, `N8N_WEBHOOK_SHARE_URL`).
+## Design Philosophy
 
-## Running locally
-- **API + Web (dev)**: run both with hot reload
-  ```bash
-  npm run dev
-  ```
-  - Web: http://localhost:5173 (Today, Memories, Buddy, History, Settings, Demo Replay)
-  - API: http://localhost:4000 (see `docs/openapi.yml`)
-- **Build**:
-  ```bash
-  npm run build
-  ```
-- **Tests** (contracts + e2e + demo data test):
-  ```bash
-  npm run test
-  ```
-- **Generate OpenAPI** (already committed, regenerate after route changes):
-  ```bash
-  npm run openapi:dev --workspace server
-  ```
+### Personality & Style
+- Warm, slow, simple communication
+- Short sentences, no technical jargon
+- Patient and reassuring: *"It's okay... take your time."*
+- Never rushes the user
+- Detects emotions: stress, confusion, loneliness, calm
 
-### Switching to Ollama fallback
-Set `LLM_PROVIDER=ollama` and `OLLAMA_BASE_URL=http://localhost:11434` (docker-compose already exposes an `ollama` service). Restart the server � AI routes will prefer the local model.
+### Design Theme
+- **Background**: `#fff7ef` (warm cream)
+- **Primary Text**: `#545454` (soft gray)
+- **Accent/Warm Tone**: `#ff5757` (gentle red)
 
-## Docker
-Builds both server + React bundle; serves web assets via Express.
-```bash
-docker compose up --build
+## Modes
+
+### Demo Mode (Default)
+Automatically activated when no API keys are detected.
+- Returns structured JSON responses with placeholder data
+- Generates demo audio URLs: `demo://audio1.mp3`
+- Simulates all external API calls
+- Perfect for testing and development
+
+### Production Mode
+Automatically activated when API keys are present.
+- Connects to real ElevenLabs, Gemini, Supabase, n8n APIs
+- Generates actual TTS audio
+- Stores data in Supabase database
+- Sends Care Circle notifications via n8n webhooks
+
+## Quick Start
+
+### Installation
+
+```powershell
+cd Amily
+npm install
 ```
-- API reachable on `http://localhost:4000`
-- Ollama service on `http://localhost:11434`
 
-## Supabase + Storage notes
-- Schema & RLS in `supabase/schema.sql`. Storage bucket `audio` is private; the server alone uploads and generates signed URLs.
-- RLS enforces per-user rows; share snippets grant `to_user_id` read access.
+### Running the Server
 
-## Integrations
-- **ElevenLabs**: `/ai/stt` + `/ai/tts` invoked server-side only with sanitized transcripts.
-- **Featherless.ai**: JSON responses enforced by Zod; fallback to Ollama automatically if enabled.
-- **n8n**: Workflows for Care Circle notifications and share snippets (see `n8n/README.md`).
+```powershell
+# Development mode (auto-reload)
+npm run dev
 
-## OpenAPI & Postman
-- `docs/openapi.yml`
-- `docs/amily.postman_collection.json`
+# Production mode
+npm run build
+npm start
+```
 
-## Demo script (�90 seconds)
-1. Sign in as the seeded user (`demo@amily.app` / `1234`).
-2. On **Today**, click �Start today�s check-in�, speak for ~20s, wait for transcript, edit a word, hit �Save check-in�. Watch the plan render (Summary � Next small step � Mood) and tap �Play Plan (TTS)�. Note the Utopia Meter bump.
-3. Switch to **Memories**, record a short life story, confirm the generated title/era/quote card on the timeline. Choose �Share snippet�, enter the buddy user ID, and mention the n8n email delivery.
-4. Visit **Buddy**, note the streak + last summaries, record/send a 20s note, and show the warm summary suggestion.
-5. In **Settings**, point out consent toggles, �Pause all sharing�, and export buttons, then mention the privacy + disclaimer text. Wrap with the **Demo Replay** route replaying the last offline flow.
+Server runs at `http://localhost:3000`
 
-## Acceptance checklist mapping
-- Supabase schema, storage notes, and seed script provided.
-- Express API exposes all `/api/v1/*` endpoints with auth, RLS checks, and signed URLs; OpenAPI + Postman included.
-- AI endpoints call ElevenLabs + Featherless with Ollama fallback; JSON contracts validated.
-- React app ships the requested five screens + offline Demo Replay + friendly copy.
-- n8n workflows + README documented.
-- Docker + compose for one-command boot; `.env.example` lists all secrets.
-- Tests: schema contracts + e2e happy path + frontend demo test.
+### Testing
+
+```powershell
+# Run component tests
+npx tsx src/test.ts
+```
+
+## API Endpoints
+
+### `POST /api/checkin`
+Daily check-in with mood assessment and plan generation.
+
+**Request:**
+```json
+{
+  "userId": "user123",
+  "userInput": "I'm feeling a bit worried today",
+  "mood": "low"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "mode": "demo",
+  "data": {
+    "summary": "Let's take the day slowly... a little movement, some rest.",
+    "next_step": "How about a short walk after breakfast?",
+    "mood": "ok",
+    "tags": ["routine", "mobility"]
+  },
+  "ttsText": "You're doing just fine... let's see what today brings.",
+  "audioUrl": "demo://audio1.mp3",
+  "timestamp": "2025-11-15T01:45:00.000Z"
+}
+```
+
+### `POST /api/memory`
+Record a life story or memory for MemoryLane.
+
+**Request:**
+```json
+{
+  "userId": "user123",
+  "storyInput": "I remember climbing the old oak tree with my brother every summer..."
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "mode": "demo",
+  "data": {
+    "title": "The Old Oak Tree",
+    "era": "Childhood, 1950s",
+    "story_3_sentences": "There was this big oak tree behind our house. My brother and I would climb it every summer. We'd sit up there for hours, watching the world go by.",
+    "tags": ["family", "childhood"],
+    "quote": "We felt like we could see the whole world from up there."
+  },
+  "ttsText": "What a wonderful story... I'm listening.",
+  "audioUrl": "demo://audio2.mp3",
+  "timestamp": "2025-11-15T01:45:00.000Z"
+}
+```
+
+### `POST /api/buddy`
+Process buddy messages with sentiment analysis.
+
+**Request:**
+```json
+{
+  "userId": "user123",
+  "messageFrom": "Sarah",
+  "messageText": "Hi Mom, thinking of you today! Hope you're doing well."
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "mode": "demo",
+  "data": {
+    "summary": "Your friend sent a warm hello... they're thinking of you today.",
+    "tone": "warm",
+    "suggestion": "Maybe send a little message back when you're ready?"
+  },
+  "ttsText": "Your friend sent a warm hello...",
+  "audioUrl": "demo://audio3.mp3",
+  "timestamp": "2025-11-15T01:45:00.000Z"
+}
+```
+
+### `POST /api/empathy`
+Generate empathetic response based on user emotion.
+
+**Request:**
+```json
+{
+  "userInput": "I'm feeling so lonely today"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "mode": "demo",
+  "data": {
+    "emotion": "lonely",
+    "response": "I'm here with you... you're not alone. Let's talk for a while."
+  },
+  "ttsText": "I'm here with you... you're not alone.",
+  "audioUrl": "demo://audio4.mp3",
+  "timestamp": "2025-11-15T01:45:00.000Z"
+}
+```
+
+### `GET /api/health`
+Health check endpoint.
+
+**Response:**
+```json
+{
+  "status": "healthy",
+  "mode": "demo",
+  "service": "Amily Companion",
+  "timestamp": "2025-11-15T01:45:00.000Z"
+}
+```
+
+### `GET /api/preferences/:userId`
+Get user preferences from database.
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "preferredPace": "slow",
+    "favoriteTime": "morning",
+    "interests": ["gardening", "music"],
+    "routineNotes": "Prefers gentle reminders, mornings are slow"
+  }
+}
+```
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file (see `.env.example`):
+
+```env
+PORT=3000
+NODE_ENV=development
+
+# API Keys (optional - uses demo mode if missing)
+ELEVENLABS_API_KEY=your_key_here
+GEMINI_API_KEY=your_key_here
+SUPABASE_URL=your_url_here
+SUPABASE_KEY=your_key_here
+N8N_WEBHOOK_URL=your_webhook_url_here
+```
+
+### API Key Files
+
+Alternatively, place API keys in `../APIKEYSFORTOMORROW/`:
+- `ElevenLabs.txt` - ElevenLabs API key
+- `FeatherlessAI.txt` - Gemini/Featherless AI key
+- `supabase.txt` - Supabase URL (line 1) and key (line 2)
+- `n8ns.txt` - n8n webhook URL
+
+The system auto-detects keys and switches to production mode.
+
+## Project Structure
+
+```
+Amily/
+├── src/
+│   ├── config.ts      # Configuration and mode detection
+│   ├── schemas.ts     # Zod schemas for JSON validation
+│   ├── persona.ts     # Amily's personality engine
+│   ├── services.ts    # External API integrations
+│   ├── server.ts      # Express server and endpoints
+│   └── test.ts        # Component tests
+├── package.json
+├── tsconfig.json
+├── .env.example
+└── README.md
+```
+
+## JSON Schemas
+
+### PlanJSON
+```typescript
+{
+  summary: string;      // Simple, warm summary of the day plan
+  next_step: string;    // Clear actionable next step
+  mood: 'low' | 'ok' | 'good';
+  tags: string[];       // e.g., ["routine", "social", "mobility"]
+}
+```
+
+### MemoryJSON
+```typescript
+{
+  title: string;             // Brief title for the memory
+  era: string;               // Time period (e.g., "1960s", "College years")
+  story_3_sentences: string; // The memory in 3 simple sentences
+  tags: string[];            // e.g., ["travel", "family", "work"]
+  quote?: string;            // Optional memorable quote
+}
+```
+
+### SummaryJSON
+```typescript
+{
+  summary: string;           // Warm summary of interaction
+  tone: 'warm' | 'neutral';
+  suggestion?: string;       // Optional gentle suggestion
+}
+```
+
+## Safety & Ethics
+
+Amily follows strict ethical guidelines:
+
+- ✅ **Never gives medical, legal, or financial advice**
+- ✅ **Reassures, redirects, or provides safe alternatives**
+- ✅ **Always respectful, inclusive, and supportive**
+- ✅ **Stores only safe, useful preferences** (no sensitive data)
+- ✅ **Consent-first sharing** (Buddy system opt-in)
+- ✅ **Care Circle gets high-level status only** (no private details)
+
+## TTS Guidelines
+
+Text-to-Speech formatting follows ElevenLabs best practices:
+
+- Natural pauses with ellipsis (...)
+- Soft commas for breathing
+- Warm, comforting tone
+- No emojis unless requested
+- Simple, elderly-friendly language
+
+Example:
+```
+"Alright... let's look at this together. You're doing fine... we can go slowly."
+```
+
+## Development
+
+### Building
+
+```powershell
+npm run build
+```
+
+Compiles TypeScript to `dist/` folder.
+
+### Code Style
+
+- TypeScript with strict mode
+- Zod for runtime validation
+- Async/await for all API calls
+- Clear error handling with user-friendly messages
+
+## Integration Details
+
+### ElevenLabs (TTS)
+- Generates natural voice audio from text
+- Uses warm, gentle voice settings
+- Returns signed URLs for audio playback
+
+### Google Gemini (AI)
+- Structured JSON generation
+- Elderly-friendly language simplification
+- Emotional context understanding
+
+### Supabase (Database)
+- User preferences storage
+- Memory timeline
+- Activity tracking
+- Buddy message history
+
+### n8n (Workflows)
+- Care Circle notifications
+- Mood alerts
+- Engagement tracking
+- Social reminders
+
+## Example Usage
+
+### Daily Check-in Flow
+
+```bash
+curl -X POST http://localhost:3000/api/checkin \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user123",
+    "userInput": "Feeling good today",
+    "mood": "good"
+  }'
+```
+
+### Record a Memory
+
+```bash
+curl -X POST http://localhost:3000/api/memory \
+  -H "Content-Type: application/json" \
+  -d '{
+    "userId": "user123",
+    "storyInput": "I remember my first job at the bakery..."
+  }'
+```
+
+## Support
+
+For questions or issues, please ensure:
+1. Dependencies are installed (`npm install`)
+2. Server is running (`npm run dev`)
+3. Check console logs for detailed error messages
+
+## License
+
+MIT
+
+---
+
+**Built with care for those who deserve patience, dignity, and warmth.** 🌸
