@@ -33,10 +33,12 @@ function AuthGate() {
   };
 
   return (
-    <div className="screen" style={{ maxWidth: 480, marginTop: 80 }}>
+    <div className="screen" style={{ maxWidth: 460, marginTop: 60 }}>
       <div className="card">
-        <h1>amily</h1>
-        <p>Warm voice-first companion for gentle daily moments.</p>
+        <div className="auth-header">
+          <h1>amily</h1>
+          <p>Warm voice-first companion for gentle daily moments.</p>
+        </div>
         <form onSubmit={handleSubmit}>
           {mode === 'register' && (
             <label>
@@ -46,6 +48,7 @@ function AuthGate() {
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
+                placeholder="Enter your name"
               />
             </label>
           )}
@@ -56,31 +59,33 @@ function AuthGate() {
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               required
+              placeholder="your@email.com"
             />
           </label>
           <label>
-            <span>4-digit passcode</span>
+            <span>{mode === 'register' ? 'Create passcode' : 'Passcode'}</span>
             <input
               type="password"
               value={form.passcode}
               onChange={(e) => setForm({ ...form, passcode: e.target.value })}
               required
               maxLength={12}
+              placeholder="4-12 characters"
             />
           </label>
-          {error && <p style={{ color: '#c43d3d' }}>{error}</p>}
+          {error && <p className="error-message">{error}</p>}
           <button className="primary-btn" disabled={loading} type="submit">
             {loading ? 'One moment…' : mode === 'login' ? 'Sign in' : 'Create account'}
           </button>
         </form>
         <button
-          style={{ marginTop: 16, background: 'transparent', border: 'none', color: '#f07c7c' }}
+          className="link-button"
           onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
         >
-          {mode === 'login' ? 'Need an account?' : 'Back to sign in'}
+          {mode === 'login' ? 'Need an account? Create one' : 'Back to sign in'}
         </button>
       </div>
-      <p style={{ marginTop: 24, textAlign: 'center' }}>Wellbeing guidance only; not medical advice.</p>
+      <p className="disclaimer">Wellbeing guidance only; not medical advice.</p>
     </div>
   );
 }

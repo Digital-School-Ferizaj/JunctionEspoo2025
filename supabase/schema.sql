@@ -90,6 +90,11 @@ create policy "Users manage self" on users
   using ( id = auth.uid() )
   with check ( id = auth.uid() );
 
+-- Allow service role to bypass RLS for seeding/admin operations
+create policy "Service role full access" on users
+  using ( auth.jwt()->>'role' = 'service_role' )
+  with check ( auth.jwt()->>'role' = 'service_role' );
+
 -- Entries policies
 create policy "Entries owner access" on entries
   using ( user_id = auth.uid() )

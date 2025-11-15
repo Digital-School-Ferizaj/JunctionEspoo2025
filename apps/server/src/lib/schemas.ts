@@ -46,8 +46,8 @@ export const SummarySchema = z.object({
 export type SummaryJSON = z.infer<typeof SummarySchema>;
 
 export const registerSchema = z.object({
-  email: z.string().email().optional(),
-  passcode: z.string().min(4).max(12).optional(),
+  email: z.string().email(),
+  passcode: z.string().min(4).max(12),
   name: z.string().min(2).max(60).optional(),
 });
 
