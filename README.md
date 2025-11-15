@@ -403,3 +403,4 @@ Team Members:
  - Diar Neziri
  - Lorik Jashari
  - Bardh Hasani 
+ - Jon Arifi
