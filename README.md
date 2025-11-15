@@ -397,3 +397,6 @@ MIT
 ---
 
 **Built with care for those who deserve patience, dignity, and warmth.** 🌸
+
+Team Members:
+ - Diar Neziri 
