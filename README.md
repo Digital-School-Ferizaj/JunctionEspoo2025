@@ -400,3 +400,4 @@ MIT
 
 Team Members:
  - Diar Neziri 
+ - Lorik Jashari
