@@ -1,4 +1,4 @@
-const featherIcons = window.ReactFeather || {};
+const lucideIcons = window.LucideReact || {};
 const {
     Shield,
     Heart,
@@ -21,7 +21,7 @@ const {
     UserCheck,
     Leaf,
     Bookmark,
-} = featherIcons;
+} = lucideIcons;
 
 const ICON_PROPS = { size: 24, strokeWidth: 1.8 };
 const createIcon = (Component, extraProps = {}) => {
