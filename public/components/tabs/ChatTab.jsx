@@ -1,7 +1,7 @@
 const { useState, useEffect, useRef } = React;
-const { HeartIcon, SendIcon } = window.AmilyIcons;
+const { HeartIcon, SendIcon, ChatBubbleIcon } = window.AmilyIcons;
 
-function ChatTab({ darkMode }) {
+function ChatTab() {
     const [messages, setMessages] = useState([]);
     const [isListening, setIsListening] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -124,245 +124,157 @@ function ChatTab({ darkMode }) {
         }
     };
 
-    const handleTextSubmit = (event) => {
+    const handleSubmit = (event) => {
         event.preventDefault();
-        if (isLoading) return;
-        const text = textInput.trim();
-        if (!text) return;
-        handleSend(text);
+        handleSend(textInput);
         setTextInput('');
     };
 
     const startListening = () => {
-        if (!recognitionRef.current) {
-            setError('Voice input is not available in this browser.');
-            return;
+        if (recognitionRef.current && !isListening) {
+            try {
+                recognitionRef.current.start();
+            } catch (error) {
+                console.warn('Unable to start recognition', error);
+            }
         }
-        setError(null);
-        recognitionRef.current.start();
     };
 
-    useEffect(() => {
-        (async () => {
-            try {
-                const res = await fetch(`/api/chatbox/history/${encodeURIComponent(userId)}`);
-                const data = await res.json();
-                if (res.ok && data.success && Array.isArray(data.data)) {
-                    setMessages(
-                        data.data.map((m) => ({
-                            type: m.type === 'user' ? 'user' : 'amily',
-                            text: m.text,
-                            emotion: m.emotion,
-                            timestamp: m.timestamp,
-                        }))
-                    );
-                }
-            } catch (err) {
-                console.error('Failed to load chat history:', err);
-            }
-        })();
-    }, []);
-
-    const pipelineSteps = [
+    const statusCards = [
         {
             id: 'listening',
             title: 'Listening',
-            subtitle: 'Microphone capture',
-            description: 'Your voice is transcribed in gentle real time.',
+            subtitle: 'Waiting to hear you',
+            active: pipelineStage === 'listening',
         },
         {
             id: 'thinking',
-            title: 'Gemini reasoning',
-            subtitle: 'Gemini 1.5 Pro 002',
-            description: 'Gemini understands tone and drafts a caring reply.',
+            title: 'Thinking',
+            subtitle: 'Gemini 1.5 Pro',
+            active: pipelineStage === 'thinking',
         },
         {
             id: 'speaking',
-            title: 'ElevenLabs voice',
-            subtitle: 'Rachel · eleven_monolingual_v1',
-            description: 'ElevenLabs speaks Amily’s words softly back to you.',
+            title: 'Speaking',
+            subtitle: 'ElevenLabs voice',
+            active: pipelineStage === 'speaking',
         },
     ];
 
     return (
-        <section id="chatbox" className="relative py-20">
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex flex-col gap-3 mb-8 text-center sm:text-left">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-[0.26em] mx-auto sm:mx-0 bg-black/5 backdrop-blur-sm">
-                        <HeartIcon />
-                        <span className={darkMode ? 'text-rose-200' : 'text-rose-600'}>Voice ChatBox</span>
+        <section className="px-4 py-12 pb-32 bg-[#FFFFF0]">
+            <div className="max-w-5xl mx-auto space-y-8">
+                <div className="text-center space-y-3">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#fde9dc] text-[#db7758] text-xs font-semibold uppercase tracking-[0.3em]">
+                        <ChatBubbleIcon />
+                        Chat
                     </div>
-                    <div className="space-y-1">
-                        <h2 className={`font-display text-3xl sm:text-4xl font-bold ${darkMode ? 'text-slate-50' : 'text-slate-900'}`}>
-                            Gemini thinks. ElevenLabs speaks.
-                        </h2>
-                        <p className={darkMode ? 'text-slate-400 text-sm sm:text-base' : 'text-slate-600 text-sm sm:text-base'}>
-                            Tell Amily how you feel. Gemini 1.5 Pro 002 composes the response, then ElevenLabs reads it back in a warm, steady voice.
+                    <h2 className="text-3xl font-bold">Chat with Amily in a calm, mobile-first view</h2>
+                    <p className="text-[#6b6b6b] max-w-3xl mx-auto">
+                        Big buttons, warm colors, and both voice and text input keep conversations relaxed and easy to follow.
+                    </p>
+                </div>
+
+                <div className="rounded-[32px] border border-[#f4d3b4] bg-white/95 shadow-xl p-6 space-y-6">
+                    <div className="rounded-3xl bg-[#fffaf0] border border-[#f4d3b4] p-4 text-sm text-[#6b6b6b]">
+                        <p>
+                            Amily listens for medication, hydration, safety, and loneliness cues. Every reply is kept short so elders never feel rushed.
                         </p>
                     </div>
-                </div>
 
-                <div className="grid gap-4 sm:grid-cols-2 mb-10">
-                    <div
-                        className={`rounded-3xl p-5 border shadow-lg text-sm ${
-                            darkMode ? 'bg-slate-950/70 border-slate-800 text-slate-200' : 'bg-white/90 border-rose-100 text-slate-700'
-                        }`}
-                    >
-                        <div className="text-[11px] uppercase tracking-[0.24em] font-semibold opacity-70 mb-1">Reasoning</div>
-                        <div className="text-xl font-semibold mb-1">Gemini 1.5 Pro 002</div>
-                        <p className="text-sm opacity-80">Understands mood, context, and routines. Keeps responses slow, short, and reassuring.</p>
-                    </div>
-                    <div
-                        className={`rounded-3xl p-5 border shadow-lg text-sm ${
-                            darkMode
-                                ? 'bg-slate-950/70 border-rose-500/40 text-slate-200'
-                                : 'bg-gradient-to-br from-rose-50 via-white to-rose-100 border-rose-200 text-slate-700'
-                        }`}
-                    >
-                        <div className="text-[11px] uppercase tracking-[0.24em] font-semibold opacity-70 mb-1">Voice</div>
-                        <div className="text-xl font-semibold mb-1">ElevenLabs · Rachel</div>
-                        <p className="text-sm opacity-80">Plays Amily’s words back with gentle pacing, soft breaths, and clear articulation.</p>
-                    </div>
-                </div>
-
-                <div
-                    className={`rounded-3xl border shadow-2xl overflow-hidden backdrop-blur-xl ${
-                        darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/90 border-rose-100'
-                    }`}
-                >
-                    <div className="p-6 sm:p-8 grid gap-8 lg:grid-cols-[minmax(0,0.95fr),minmax(0,1.05fr)]">
-                        <div className="space-y-7 flex flex-col justify-between">
-                            <div className="space-y-5">
-                                <p className={darkMode ? 'text-slate-300 text-sm' : 'text-slate-700 text-sm'}>
-                                    Share feelings or questions. Gemini watches for medication, hydration, loneliness, and confusion cues before gently answering.
-                                </p>
-                                <button
-                                    type="button"
-                                    onClick={startListening}
-                                    disabled={isListening || isLoading}
-                                    className={`inline-flex items-center justify-center gap-3 px-8 py-4 rounded-full text-sm font-semibold shadow-lg border transition-all duration-200 ${
-                                        darkMode
-                                            ? 'bg-slate-950 border-rose-500/60 text-slate-50 hover:bg-slate-900'
-                                            : 'bg-white border-rose-300 text-rose-700 hover:bg-rose-50'
-                                    } ${isListening || isLoading ? 'opacity-60 cursor-not-allowed' : 'hover:scale-[1.02] active:scale-[0.98]'}`}
-                                >
-                                    <span className={`w-9 h-9 rounded-full flex items-center justify-center ${isListening ? 'bg-rose-500 animate-pulse' : 'bg-rose-500/80'}`}>
-                                        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 1v11m0 0a3 3 0 003-3V5a3 3 0 10-6 0v4a3 3 0 003 3zm0 0v5m-4 0h8" />
-                                        </svg>
-                                    </span>
-                                    <span>{isListening ? 'Listening… speak gently to Amily' : 'Press to talk to Amily'}</span>
-                                </button>
-                                <form onSubmit={handleTextSubmit} className="space-y-3">
-                                    <label className={`text-[11px] uppercase tracking-[0.28em] font-semibold ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
-                                        Or type a gentle message
-                                    </label>
-                                    <textarea
-                                        rows={3}
-                                        value={textInput}
-                                        onChange={(e) => setTextInput(e.target.value)}
-                                        placeholder="“I feel a little lonely this afternoon...”"
-                                        className={`w-full rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-rose-400/60 ${
-                                            darkMode
-                                                ? 'bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500'
-                                                : 'bg-white border border-rose-100 text-slate-800 placeholder-slate-400'
+                    <div className="rounded-3xl border border-[#f4d3b4] bg-[#fffdf8] p-4 h-96 overflow-y-auto space-y-4">
+                        {messages.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-center text-sm text-[#6b6b6b]">
+                                <HeartIcon className="w-8 h-8 text-[#db7758]" />
+                                <p className="mt-3">Tap the microphone or type a message to begin.</p>
+                            </div>
+                        ) : (
+                            messages.map((msg, idx) => (
+                                <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                    <div
+                                        className={`max-w-sm rounded-3xl px-4 py-3 text-sm shadow-sm ${
+                                            msg.type === 'user'
+                                                ? 'bg-white border border-[#f4d3b4]'
+                                                : 'bg-[#db7758] text-white'
                                         }`}
-                                    />
-                                    <div className="flex items-center justify-between gap-3">
-                                        <button
-                                            type="submit"
-                                            disabled={isLoading}
-                                            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-gradient-to-r from-rose-500 to-red-500 text-white text-sm font-semibold shadow-lg disabled:opacity-60"
-                                        >
-                                            <SendIcon />
-                                            Send softly
-                                        </button>
-                                        <span className="text-[11px] text-slate-400">Responses stay gentle, private, and stored in Supabase.</span>
-                                    </div>
-                                </form>
-                                <div className="grid gap-3 sm:grid-cols-3">
-                                    {pipelineSteps.map((step) => {
-                                        const isActive = pipelineStage === step.id;
-                                        return (
-                                            <div
-                                                key={step.id}
-                                                className={`rounded-2xl border px-3 py-3 text-xs space-y-1 ${
-                                                    isActive
-                                                        ? 'bg-gradient-to-br from-rose-500 to-red-500 text-white border-transparent shadow-lg'
-                                                        : darkMode
-                                                        ? 'bg-slate-950/60 border-slate-800 text-slate-300'
-                                                        : 'bg-white border-slate-100 text-slate-600'
-                                                }`}
-                                            >
-                                                <div className="font-semibold text-[11px] uppercase tracking-[0.18em]">{step.title}</div>
-                                                <div className="text-[11px] opacity-80">{step.subtitle}</div>
-                                                <p className="text-[11px] leading-relaxed opacity-80">{step.description}</p>
-                                                {isActive && <div className="text-[10px] font-semibold tracking-[0.2em]">ACTIVE</div>}
+                                    >
+                                        <div className="font-semibold text-xs mb-1 opacity-75">{msg.type === 'user' ? 'You' : 'Amily'}</div>
+                                        <div className="leading-relaxed">{msg.text}</div>
+                                        {msg.meta && (
+                                            <div className="text-[10px] mt-1 opacity-80">
+                                                Reasoning: {msg.meta.reasoningModel} | Voice: {msg.meta.voiceModel}
                                             </div>
-                                        );
-                                    })}
+                                        )}
+                                    </div>
                                 </div>
-                                {error && (
-                                    <div className="text-xs px-3 py-2 rounded-2xl bg-red-900/40 border border-red-500/60 text-red-100">
-                                        {error}
-                                    </div>
-                                )}
-                                {isLoading && (
-                                    <div className="text-xs px-3 py-2 rounded-2xl bg-slate-900/40 border border-slate-700/60 text-slate-100">
-                                        Amily is thinking about what to say back…
-                                    </div>
-                                )}
-                                {lastResponseMeta && (
-                                    <div className={`text-[11px] rounded-2xl px-3 py-2 border ${darkMode ? 'border-slate-800 text-slate-300' : 'border-rose-100 text-slate-600'}`}>
-                                        <div>Reasoning: {lastResponseMeta.reasoningModel || 'Gemini 1.5 Pro 002'}</div>
-                                        <div>Voice: {lastResponseMeta.voiceModel || 'ElevenLabs Rachel'}</div>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="text-[11px] text-slate-500">
-                                Voice input works best in a quiet room, speaking slowly and clearly. Text input is always available if microphones are tricky.
-                            </div>
-                        </div>
+                            ))
+                        )}
+                    </div>
 
+                    {error && (
+                        <div className="rounded-2xl bg-[#ffe3dd] border border-[#f1bfb2] px-4 py-3 text-sm text-[#a6523b]">
+                            {error}
+                        </div>
+                    )}
+
+                    <form onSubmit={handleSubmit} className="rounded-3xl border border-[#f4d3b4] bg-white flex flex-col gap-4 p-4">
+                        <label className="text-xs font-semibold uppercase tracking-[0.3em] text-[#db7758]">Type a note instead of talking</label>
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <input
+                                type="text"
+                                value={textInput}
+                                onChange={(event) => setTextInput(event.target.value)}
+                                placeholder="For example: I feel a bit lonely tonight..."
+                                className="flex-1 rounded-2xl border border-[#f4d3b4] px-4 py-3 text-base text-[#545454] placeholder:text-[#9b9b9b] focus:outline-none focus:ring-2 focus:ring-[#db7758]"
+                            />
+                            <button
+                                type="submit"
+                                disabled={isLoading}
+                                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#db7758] text-white font-semibold shadow-md disabled:opacity-60"
+                            >
+                                <SendIcon />
+                                Send
+                            </button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-[#6b6b6b]">
+                            <button
+                                type="button"
+                                onClick={startListening}
+                                disabled={isListening || isLoading}
+                                className={`px-5 py-3 rounded-2xl font-semibold border-2 border-[#db7758] text-[#db7758] ${
+                                    isListening ? 'opacity-60 cursor-not-allowed' : ''
+                                }`}
+                            >
+                                {isListening ? 'Listening...' : 'Use microphone'}
+                            </button>
+                            {isLoading && <span>Amily is thinking about your words...</span>}
+                        </div>
+                    </form>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-3">
+                    {statusCards.map((card) => (
                         <div
-                            className={`rounded-2xl p-5 max-h-96 overflow-y-auto space-y-4 text-sm bg-gradient-to-b ${
-                                darkMode ? 'from-slate-950/90 via-slate-900/75 to-slate-900/60 border border-slate-800' : 'from-rose-50 via-white to-rose-50/80 border border-rose-100'
+                            key={card.id}
+                            className={`rounded-3xl border border-[#f4d3b4] p-4 text-center ${
+                                card.active ? 'bg-[#db7758] text-white' : 'bg-white text-[#545454]'
                             }`}
                         >
-                            {messages.length === 0 ? (
-                                <div className="text-center py-10">
-                                    <p className={darkMode ? 'text-slate-400 text-sm' : 'text-slate-500 text-sm'}>
-                                        Press the microphone or type a message to let Gemini & ElevenLabs take care of you.
-                                    </p>
-                                </div>
-                            ) : (
-                                messages.map((msg, idx) => (
-                                    <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                        <div
-                                            className={`max-w-md rounded-2xl px-4 py-3 shadow-md ${
-                                                msg.type === 'user'
-                                                    ? darkMode
-                                                        ? 'bg-slate-950 border border-slate-700 text-slate-100'
-                                                        : 'bg-white border border-slate-200 text-slate-800'
-                                                    : 'bg-gradient-to-br from-rose-500 to-red-500 text-white'
-                                            }`}
-                                        >
-                                            <div className="font-semibold text-[11px] mb-1 opacity-75">
-                                                {msg.type === 'user' ? 'You' : 'Amily'}
-                                            </div>
-                                            <div className="leading-relaxed">{msg.text}</div>
-                                            {msg.meta && (
-                                                <div className="text-[10px] mt-1 opacity-70">
-                                                    Reasoning: {msg.meta.reasoningModel} · Voice: {msg.meta.voiceModel}
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))
-                            )}
+                            <p className="text-xs font-semibold uppercase tracking-[0.3em]">{card.title}</p>
+                            <p className="text-lg font-bold mt-1">{card.subtitle}</p>
+                            <p className="text-xs mt-1">{card.active ? 'Right now' : 'Standing by'}</p>
                         </div>
-                    </div>
+                    ))}
                 </div>
+
+                {lastResponseMeta && (
+                    <div className="rounded-[32px] border border-[#f4d3b4] bg-[#fff6ea] p-4 text-sm text-[#6b6b6b]">
+                        <p>
+                            Reasoning model: {lastResponseMeta.reasoningModel || 'Gemini 1.5 Pro'} - Voice model:{' '}
+                            {lastResponseMeta.voiceModel || 'ElevenLabs'}
+                        </p>
+                    </div>
+                )}
             </div>
         </section>
     );
@@ -370,4 +282,3 @@ function ChatTab({ darkMode }) {
 
 window.AmilyTabs = window.AmilyTabs || {};
 window.AmilyTabs.ChatTab = ChatTab;
-

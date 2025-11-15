@@ -1,202 +1,137 @@
-const { useState } = React;
-const { ShieldIcon } = window.AmilyIcons;
+const { SparklesIcon, ShieldIcon, ActivityIcon, MemorySparkIcon, BuddyIcon, ChatBubbleIcon } = window.AmilyIcons;
 
-function Hero({ darkMode, isLoggedIn, onNavigate }) {
-    const [cardTilt, setCardTilt] = useState({ rotateX: 0, rotateY: 0 });
+function HomeTab({ onNavigate, features, FeatureCard }) {
+    const highlights = [
+        { label: 'Built for families', detail: 'Invite relatives to follow wellness updates.' },
+        { label: 'Voice & touch ready', detail: 'Large buttons and slow, caring responses.' },
+        { label: 'Safety layer', detail: 'Emergency contacts always one tap away.' },
+        { label: 'Trusted data', detail: 'Private by default and easy to share.' },
+    ];
 
-    const handleCardMouseMove = (e) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        const centerX = rect.width / 2;
-        const centerY = rect.height / 2;
-
-        const rotateX = ((y - centerY) / centerY) * -10;
-        const rotateY = ((x - centerX) / centerX) * 10;
-
-        setCardTilt({ rotateX, rotateY });
-    };
-
-    const handleCardMouseLeave = () => {
-        setCardTilt({ rotateX: 0, rotateY: 0 });
-    };
+    const previewTabs = [
+        { icon: MemorySparkIcon, label: 'Memories', description: 'Record small stories and photos.' },
+        { icon: ActivityIcon, label: 'Wellness', description: 'See mood, sleep, and gentle reminders.' },
+        { icon: ChatBubbleIcon, label: 'Chat', description: 'Talk to Amily or send a quick text.' },
+        { icon: ShieldIcon, label: 'Safety', description: 'Tap to call family, doctor, or emergency.' },
+        { icon: BuddyIcon, label: 'Buddy', description: 'Meet neighbors with similar interests.' },
+    ];
 
     return (
-        <section id="home" className="relative pt-32 pb-24 overflow-hidden">
-            <div
-                className={`absolute inset-0 ${
-                    darkMode
-                        ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950'
-                        : 'bg-gradient-to-br from-rose-100 via-amber-50 to-sky-100'
-                }`}
-            />
-
-            <div
-                className={`absolute -top-24 -left-10 w-80 h-80 rounded-full mix-blend-screen blur-3xl opacity-40 animate-blob ${
-                    darkMode ? 'bg-rose-500/60' : 'bg-rose-300/70'
-                }`}
-            />
-            <div
-                className={`absolute top-40 -right-10 w-80 h-80 rounded-full mix-blend-screen blur-3xl opacity-40 animate-blob animation-delay-2000 ${
-                    darkMode ? 'bg-orange-500/60' : 'bg-orange-300/70'
-                }`}
-            />
-            <div
-                className={`absolute bottom-0 left-1/2 w-96 h-96 rounded-full mix-blend-screen blur-3xl opacity-40 animate-blob animation-delay-4000 ${
-                    darkMode ? 'bg-pink-500/60' : 'bg-pink-300/70'
-                }`}
-            />
-
-            <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="grid gap-12 lg:grid-cols-[minmax(0,1.3fr),minmax(0,1fr)] items-center">
-                    <div className="text-center lg:text-left">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border text-[11px] font-semibold uppercase tracking-[0.26em] mb-5 bg-black/5 backdrop-blur-sm">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            <span className={darkMode ? 'text-slate-200' : 'text-rose-600'}>
-                                Built for calm, not speed
-                            </span>
+        <div className="bg-[#FFFFF0] text-[#545454]">
+            <section className="px-4 pt-20 pb-16">
+                <div className="max-w-6xl mx-auto grid gap-12 md:grid-cols-2">
+                    <div className="space-y-6">
+                        <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.3em] text-[#db7758]">
+                            <SparklesIcon />
+                            Two spaces. One calm companion.
+                        </span>
+                        <div>
+                            <h1 className="text-4xl md:text-5xl font-bold leading-tight">A welcoming website and a gentle daily app.</h1>
+                            <p className="mt-4 text-lg text-[#6b6b6b]">
+                                Families discover Amily on this page. Elders enjoy the simplified platform after signing in.
+                                Every screen was drawn for shaky hands, tired eyes, and hearts that prefer patience.
+                            </p>
                         </div>
-
-                        <h1 className="font-display text-4xl sm:text-5xl md:text-6xl lg:text-[3.5rem] xl:text-[4rem] font-bold mb-4 leading-tight">
-                            <span className="bg-gradient-to-r from-rose-400 via-pink-500 to-orange-400 bg-clip-text text-transparent drop-shadow-glow">
-                                A safe space
-                            </span>
-                            <br />
-                            <span className={darkMode ? 'text-slate-100' : 'text-slate-900'}>
-                                for gentle conversations.
-                            </span>
-                        </h1>
-
-                        <p
-                            className={`text-base sm:text-lg md:text-xl mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed ${
-                                darkMode ? 'text-slate-300' : 'text-slate-700'
-                            }`}
-                        >
-                            Amily speaks slowly, listens carefully, and remembers the little things – so older
-                            adults and their families can feel calmer, safer, and more connected every day.
-                        </p>
-
-                        <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4">
+                        <div className="flex flex-wrap gap-4">
                             <button
                                 type="button"
-                                onClick={() => onNavigate(isLoggedIn ? 'wellness' : 'login')}
-                                className="group inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-gradient-to-r from-rose-500 via-pink-500 to-orange-500 text-white text-sm md:text-base font-semibold shadow-lg hover:shadow-2xl hover:scale-[1.03] active:scale-[0.99] transition-all duration-200"
+                                onClick={() => onNavigate('login')}
+                                className="px-6 py-3 rounded-2xl bg-[#db7758] text-white font-semibold shadow-md hover:bg-[#c86245] transition-colors"
                             >
-                                <span>{isLoggedIn ? 'Try the daily check-in' : 'Log in'}</span>
-                                <span className="group-hover:translate-x-1 transition-transform text-lg">→</span>
+                                Sign in to the platform
                             </button>
                             <button
                                 type="button"
-                                onClick={() => onNavigate(isLoggedIn ? 'safety' : 'signup')}
-                                className={`inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm md:text-base font-semibold border transition-all duration-200 ${
-                                    darkMode
-                                        ? 'bg-slate-900/60 border-slate-700 text-slate-100 hover:border-rose-400 hover:bg-slate-900/90'
-                                        : 'bg-white/80 border-rose-200 text-rose-700 hover:bg-rose-50'
-                                }`}
+                                onClick={() => onNavigate('signup')}
+                                className="px-6 py-3 rounded-2xl border-2 border-[#db7758] text-[#db7758] font-semibold hover:bg-white transition-colors"
                             >
-                                <ShieldIcon />
-                                <span>{isLoggedIn ? 'See safety features' : 'Create an account'}</span>
+                                Create a family account
                             </button>
                         </div>
-
-                        <div className="mt-6 flex flex-wrap items-center justify-center lg:justify-start gap-6 text-xs sm:text-sm text-slate-400">
-                            <div className="flex items-center gap-2">
-                                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400 text-xs">
-                                    ✓
-                                </span>
-                                <span>Designed with elderly users in mind</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-sky-500/15 text-sky-400 text-xs">
-                                    ✦
-                                </span>
-                                <span>Clear visuals & large, gentle typography</span>
-                            </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {highlights.map((item) => (
+                                <div key={item.label} className="rounded-2xl bg-white/80 border border-[#f4d3b4] p-4 shadow-sm">
+                                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#db7758]">{item.label}</p>
+                                    <p className="mt-2 text-sm leading-relaxed">{item.detail}</p>
+                                </div>
+                            ))}
                         </div>
                     </div>
-
-                    <div
-                        className="relative"
-                        onMouseMove={handleCardMouseMove}
-                        onMouseLeave={handleCardMouseLeave}
-                        style={{
-                            transform: `perspective(900px) rotateX(${cardTilt.rotateX}deg) rotateY(${cardTilt.rotateY}deg)`,
-                            transformStyle: 'preserve-3d',
-                            transition: 'transform 150ms ease-out',
-                        }}
-                    >
-                        <div
-                            className={`relative rounded-3xl border shadow-2xl overflow-hidden backdrop-blur-xl ${
-                                darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/90 border-rose-100'
-                            }`}
-                        >
-                            <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-rose-500 to-orange-400 flex items-center justify-center text-white text-lg font-semibold shadow-md">
-                                        A
-                                    </div>
-                                    <div>
-                                        <p className={darkMode ? 'text-slate-50 text-sm font-semibold' : 'text-slate-900 text-sm font-semibold'}>
-                                            Amily · Companion
-                                        </p>
-                                        <p className={darkMode ? 'text-emerald-300 text-xs' : 'text-emerald-600 text-xs'}>
-                                            Online · Listening gently
-                                        </p>
-                                    </div>
-                                </div>
-                                <span className={darkMode ? 'text-slate-500 text-xs' : 'text-slate-400 text-xs'}>Today · 9:04 AM</span>
-                            </div>
-
-                            <div className="p-5 space-y-4 max-h-72 overflow-hidden">
-                                <div className="flex justify-start">
-                                    <div className="max-w-xs rounded-2xl px-4 py-3 bg-gradient-to-br from-rose-500 to-orange-500 text-white text-sm shadow-md">
-                                        Good morning... how are you feeling today?
-                                    </div>
-                                </div>
-                                <div className="flex justify-end">
-                                    <div
-                                        className={`max-w-xs rounded-2xl px-4 py-3 text-sm shadow-md ${
-                                            darkMode
-                                                ? 'bg-slate-950 border border-slate-700 text-slate-100'
-                                                : 'bg-white border border-slate-200 text-slate-800'
-                                        }`}
-                                    >
-                                        I feel a little lonely, but I am okay.
-                                    </div>
-                                </div>
-                                <div className="flex justify-start">
-                                    <div className="max-w-xs rounded-2xl px-4 py-3 bg-gradient-to-br from-orange-500 to-amber-500 text-white text-sm shadow-md">
-                                        Thank you for telling me... I am right here with you. We will take today slowly, one gentle step at a time.
-                                    </div>
-                                </div>
-                                <div className="pt-2 text-[11px] text-slate-400 flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                    <span>Amily is speaking in a calm, steady voice…</span>
-                                </div>
-                            </div>
+                    <div className="rounded-[32px] border border-[#f4d3b4] bg-white shadow-xl p-6 space-y-6">
+                        <div>
+                            <p className="text-sm font-semibold text-[#db7758] uppercase tracking-[0.2em]">Platform preview</p>
+                            <h3 className="mt-2 text-2xl font-bold">Five simple tabs guide every day</h3>
+                            <p className="text-sm text-[#6b6b6b]">
+                                After sign in, the home page is replaced with this calm layout. Each tab mirrors a real-life need.
+                            </p>
                         </div>
-                        <div className="absolute -bottom-8 -left-6 w-28 h-28 rounded-3xl bg-gradient-to-br from-rose-400/80 to-orange-400/80 blur-3xl opacity-60 pointer-events-none" />
-                        <div className="absolute -top-10 -right-10 w-32 h-32 rounded-full bg-gradient-to-br from-pink-500/70 to-amber-400/70 blur-3xl opacity-60 pointer-events-none" />
+                        <div className="grid grid-cols-2 gap-3 text-sm">
+                            {previewTabs.map((tab) => (
+                                <div key={tab.label} className="rounded-2xl border border-[#f4d3b4] p-4 bg-[#fffaf0] flex flex-col gap-3">
+                                    <div className="inline-flex items-center gap-2">
+                                        <div className="p-2 rounded-xl bg-[#fde9dc] text-[#db7758]">
+                                            <tab.icon />
+                                        </div>
+                                        <span className="font-semibold">{tab.label}</span>
+                                    </div>
+                                    <p className="text-xs text-[#6b6b6b] leading-relaxed">{tab.description}</p>
+                                </div>
+                            ))}
+                        </div>
+                        <div className="rounded-2xl bg-[#fef6e0] border border-[#f5d5c2] p-4 text-sm leading-relaxed">
+                            <p className="font-semibold text-[#db7758]">Mobile first</p>
+                            <p>
+                                The platform opens with a bottom tab bar on phones, with Chat in the center. Larger screens keep the same order for
+                                familiarity.
+                            </p>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
+
+            <section className="px-4 pb-16">
+                <div className="max-w-6xl mx-auto space-y-6">
+                    <div className="text-center">
+                        <h2 className="text-3xl font-bold">What elders see after signing in</h2>
+                        <p className="mt-2 text-lg text-[#6b6b6b]">Each card below becomes one of the in-app tabs.</p>
+                    </div>
+                    <div className="grid gap-6 md:grid-cols-3">
+                        {features.map((feature) => (
+                            <FeatureCard key={feature.title} {...feature} />
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            <section className="px-4 pb-20">
+                <div className="max-w-5xl mx-auto rounded-[32px] border border-[#f4d3b4] bg-white/90 shadow-lg p-8 space-y-8">
+                    <div className="space-y-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#db7758]">Gentle roll-out</p>
+                        <h3 className="text-2xl font-bold">Simple steps toward calm support</h3>
+                        <p className="text-sm text-[#6b6b6b]">
+                            We removed extra screens and complicated check-ins. Everything now fits into the five-tab layout.
+                        </p>
+                    </div>
+                    <div className="grid gap-6 md:grid-cols-3">
+                        {[
+                            { title: 'Invite & explain', detail: 'Start with the family-friendly homepage. Show the five tabs using your own words.' },
+                            { title: 'Sign in together', detail: 'Use the large sign-in form. Once authenticated the homepage disappears automatically.' },
+                            { title: 'Let habits grow', detail: 'Wellness and Buddy tabs act like a profile, so elders recognize their place.' },
+                        ].map((step, idx) => (
+                            <div key={step.title} className="rounded-2xl p-4 bg-[#fffaf0] border border-[#f4d3b4] space-y-2">
+                                <span className="inline-flex w-10 h-10 items-center justify-center rounded-full bg-[#db7758] text-white font-semibold">
+                                    {idx + 1}
+                                </span>
+                                <h4 className="text-lg font-bold">{step.title}</h4>
+                                <p className="text-sm text-[#6b6b6b] leading-relaxed">{step.detail}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+        </div>
     );
 }
 
-const HomeTab = ({ darkMode, isLoggedIn, onNavigate, features, FeatureCard }) => (
-    <>
-        <Hero darkMode={darkMode} isLoggedIn={isLoggedIn} onNavigate={onNavigate} />
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {features.map((feature, index) => (
-                    <FeatureCard key={index} {...feature} darkMode={darkMode} />
-                ))}
-            </div>
-        </section>
-    </>
-);
-
 window.AmilyTabs = window.AmilyTabs || {};
 window.AmilyTabs.HomeTab = HomeTab;
-
