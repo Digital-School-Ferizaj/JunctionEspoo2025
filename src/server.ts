@@ -20,6 +20,7 @@ import {
 } from './persona';
 import {
   generateTTS,
+  generateMemoryImage,
   saveToSupabase,
   triggerN8NWorkflow,
   getUserPreferences,
@@ -28,6 +29,7 @@ import {
   getChatHistory,
   generateChatReply,
   getBuddyProfiles,
+  getMemories,
   GEMINI_CHAT_MODEL,
   ELEVENLABS_TTS_MODEL,
 } from './services';
@@ -261,6 +263,77 @@ app.post('/api/chatbox', async (req: Request, res: Response) => {
     memory.reminderAsked = true;
     chatMemory.set(trimmedUserId, memory);
 
+    const persistChatMessage = (role: 'user' | 'amily', text: string) => {
+      if (!text) {
+        return;
+      }
+      saveToSupabase('chat_messages', {
+        user_id: trimmedUserId,
+        role,
+        text,
+        emotion: null,
+        timestamp: new Date().toISOString(),
+      }).catch((err) => {
+        console.warn(`Failed to save ${role} message (non-critical):`, err);
+      });
+    };
+
+    persistChatMessage('user', input);
+
+    const safetyAlert = detectSafetyConcerns(input);
+    if (safetyAlert.level !== 'normal') {
+      const isEmergency = safetyAlert.level === 'emergency' || safetyAlert.level === 'urgent';
+      let alertId: string | undefined;
+
+      try {
+        if (isEmergency) {
+          const emergencyResult = await handleEmergency(
+            trimmedUserId,
+            safetyAlert,
+            undefined,
+            input
+          );
+          alertId = emergencyResult.alertId;
+        } else {
+          await triggerN8NWorkflow('safety_concern', {
+            userId: trimmedUserId,
+            detected: safetyAlert.detected,
+            level: safetyAlert.level,
+            caregiverAlert: safetyAlert.caregiverAlert,
+            actions: safetyAlert.actions,
+            timestamp: new Date().toISOString(),
+            source: 'chatbox',
+          });
+        }
+      } catch (workflowError) {
+        console.error('Safety workflow error (chatbox):', workflowError);
+      }
+
+      const responseText = formatForTTS(
+        `Safety first. ${safetyAlert.message || getEmergencyReassurance(safetyAlert)}`.trim(),
+        { includeReassurance: false }
+      );
+      const audioUrl = await generateTTS(responseText);
+
+      persistChatMessage('amily', responseText);
+
+      return res.json({
+        success: true,
+        emergency: isEmergency,
+        alert: safetyAlert,
+        alertId,
+        data: {
+          firstTurn,
+          response: responseText,
+          reasoningModel: isEmergency ? 'Safety protocol' : 'Safety check-in',
+          voiceModel: ELEVENLABS_TTS_MODEL,
+        },
+        ttsText: responseText,
+        audioUrl,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     // Load recent chat history for AI context
     const historyRows = await getChatHistory(trimmedUserId, 20);
     const historyForAI =
@@ -277,25 +350,7 @@ app.post('/api/chatbox', async (req: Request, res: Response) => {
     const audioUrl = await generateTTS(ttsText);
 
     // Persist both user and Amily messages to Supabase (non-blocking, fails gracefully)
-    saveToSupabase('chat_messages', {
-      user_id: trimmedUserId,
-      role: 'user',
-      text: input,
-      emotion: null,
-      timestamp: new Date().toISOString(),
-    }).catch((err) => {
-      console.warn('Failed to save user message (non-critical):', err);
-    });
-
-    saveToSupabase('chat_messages', {
-      user_id: trimmedUserId,
-      role: 'amily',
-      text: ttsText,
-      emotion: null,
-      timestamp: new Date().toISOString(),
-    }).catch((err) => {
-      console.warn('Failed to save Amily message (non-critical):', err);
-    });
+    persistChatMessage('amily', ttsText);
 
     res.json({
       success: true,
@@ -342,6 +397,18 @@ app.post('/api/memory', async (req: Request, res: Response) => {
       story_3_sentences: story3Sentences || storyInput.substring(0, 200),
       tags: ['personal'],
     };
+
+    let imageUrl: string | null = null;
+    try {
+      imageUrl = await generateMemoryImage(validatedMemory.title, storyInput);
+    } catch (imageError) {
+      console.warn('Memory image generation error:', imageError);
+    }
+
+    const memoryRecord: MemoryJSON & { image_url?: string | null } = {
+      ...validatedMemory,
+      image_url: imageUrl ?? undefined,
+    };
     
     // Generate encouraging TTS response
     const prompt = generateMemoryPrompt();
@@ -353,13 +420,13 @@ app.post('/api/memory', async (req: Request, res: Response) => {
     // Save memory to database
     await saveToSupabase('memories', {
       user_id: userId,
-      memory: validatedMemory,
+      memory: memoryRecord,
       timestamp: new Date().toISOString(),
     });
     
     res.json({
       success: true,
-      data: validatedMemory,
+      data: { ...memoryRecord, imageUrl: imageUrl ?? null },
       ttsText,
       audioUrl,
       timestamp: new Date().toISOString(),
@@ -369,6 +436,43 @@ app.post('/api/memory', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: "I had trouble saving that... can we try once more?",
+    });
+  }
+});
+
+/**
+ * GET /api/memory/:userId
+ * Retrieve memories for a given user
+ */
+app.get('/api/memory/:userId', async (req: Request, res: Response) => {
+  try {
+    const requestedUserId = req.params.userId;
+    const resolvedUserId = requestedUserId;
+    const limitParam = parseInt(String(req.query.limit ?? '25'), 10);
+    const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 100) : 25;
+
+    if (!resolvedUserId) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID is required.',
+      });
+    }
+
+    const memories = await getMemories(resolvedUserId, limit);
+
+    res.json({
+      success: true,
+      data: memories.map((memory) => ({
+        ...memory,
+        story: memory.story ?? memory.story_3_sentences,
+        imageUrl: memory.imageUrl ?? memory.image_url ?? null,
+      })),
+    });
+  } catch (error) {
+    console.error('Memory fetch error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Could not load memories.',
     });
   }
 });

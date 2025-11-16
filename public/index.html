@@ -559,7 +559,7 @@
                 />
               )}{" "}
               {isLoggedIn && currentPage === "memories" && MemoriesTab && (
-                <MemoriesTab />
+                <MemoriesTab userId={activeUserId} authToken={authToken} />
               )}{" "}
               {isLoggedIn && currentPage === "wellness" && WellnessTab && (
                 <WellnessTab userId={activeUserId} authToken={authToken} />

@@ -4,6 +4,7 @@ const { ShieldIcon, PhoneIcon } = window.AmilyIcons;
 function SafetyTab({ userId = 'demo-user', authToken = null }) {
     const [lastAction, setLastAction] = useState(null);
     const [signals, setSignals] = useState([]);
+    const [careAlarm, setCareAlarm] = useState(null);
     const contacts = [
         {
             label: 'Emergency services',
@@ -72,11 +73,35 @@ function SafetyTab({ userId = 'demo-user', authToken = null }) {
                 time: timeLabel,
             };
             setSignals((prev) => [signalEntry, ...prev].slice(0, 5));
-            if (detail.level === 'emergency') {
+
+            const severity = signalEntry.level;
+            const isEmergency = severity === 'emergency';
+            const requiresAlarm = severity && severity !== 'normal';
+
+            if (isEmergency) {
                 setLastAction({ type: 'voice emergency', time: timeLabel });
                 if (!detail.notified) {
                     sendEmergencyRequest(detail);
                 }
+            }
+
+            if (requiresAlarm) {
+                const status =
+                    detail.notified && isEmergency
+                        ? 'Care circle alerted'
+                        : isEmergency
+                        ? 'Alerting care circle'
+                        : 'Watching with care circle';
+
+                setCareAlarm({
+                    id: signalEntry.id,
+                    status,
+                    text: signalEntry.text,
+                    detected: signalEntry.detected,
+                    time: timeLabel,
+                    source: signalEntry.source,
+                    level: severity,
+                });
             }
         };
         window.addEventListener('amily:safety:signal', handleSignal);
@@ -88,7 +113,18 @@ function SafetyTab({ userId = 'demo-user', authToken = null }) {
         setLastAction({ type, time });
 
         sendEmergencyRequest({ type });
+        setCareAlarm({
+            id: `${Date.now()}`,
+            status: 'Care circle alerted',
+            text: `Manual ${type} alert sent from Safety tab`,
+            detected: [],
+            time,
+            source: 'safety-tab',
+            level: 'emergency',
+        });
     };
+
+    const dismissAlarm = () => setCareAlarm(null);
 
     return (
         <section className="px-4 py-12 pb-28 bg-[#FFFFF0]">
@@ -103,6 +139,46 @@ function SafetyTab({ userId = 'demo-user', authToken = null }) {
                         The Safety page removes complicated screens. Each button calls a trusted person or service and alerts the care circle quietly.
                     </p>
                 </div>
+
+                {careAlarm && (
+                    <div className="rounded-[32px] border border-[#f4b5a0] bg-gradient-to-br from-[#ffe3dc] via-[#ffc7bb] to-[#ff9d8a] shadow-2xl p-6 space-y-4 text-[#7a2e1f]">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.3em]">Care circle alarm</p>
+                                <h3 className="text-2xl font-bold">Help is being notified right now</h3>
+                                <p className="text-sm opacity-80">Stay nearby and keep your phone close. We already let your circle know.</p>
+                            </div>
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.3em] bg-white/40 rounded-full px-4 py-2">
+                                {careAlarm.status}
+                            </span>
+                        </div>
+                        <div className="rounded-2xl bg-white/70 border border-white/60 p-4 text-[#5a1f15] space-y-1">
+                            <p className="text-sm font-semibold">{careAlarm.text}</p>
+                            {careAlarm.detected?.length > 0 && (
+                                <p className="text-xs">Buzz words: {careAlarm.detected.join(', ')}</p>
+                            )}
+                            <p className="text-xs opacity-75">
+                                Source: {careAlarm.source === 'safety-tab' ? 'Safety page' : 'Voice chat'} · {careAlarm.time}
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                            <button
+                                type="button"
+                                onClick={() => sendEmergencyRequest({ type: 'care-circle-follow-up' })}
+                                className="px-5 py-3 rounded-2xl bg-[#b93823] text-white text-sm font-semibold shadow-md hover:bg-[#a02f1c]"
+                            >
+                                Send another alert
+                            </button>
+                            <button
+                                type="button"
+                                onClick={dismissAlarm}
+                                className="px-5 py-3 rounded-2xl border-2 border-white/70 text-sm font-semibold text-white/90 hover:text-white"
+                            >
+                                I am safe now
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {signals.length > 0 && (
                     <div className="rounded-[32px] border border-[#f4d3b4] bg-white shadow-lg p-6 space-y-4">

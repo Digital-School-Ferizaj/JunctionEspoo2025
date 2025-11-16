@@ -8,9 +8,39 @@ import crypto from 'crypto';
 import { config } from './config';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { detectEmotion, generateEmpatheticResponse } from './persona';
+import { type MemoryJSON } from './schemas';
 
 export const GEMINI_CHAT_MODEL = 'gemini-2.0-flash';
 export const ELEVENLABS_TTS_MODEL = 'eleven_monolingual_v1';
+
+const MEMORY_IMAGE_FALLBACKS = [
+  'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80',
+  'https://images.unsplash.com/photo-1482192505345-5655af888cc4?auto=format&fit=crop&w=900&q=80',
+  'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=900&q=80',
+];
+
+const getMemoryImageFallback = () => {
+  return MEMORY_IMAGE_FALLBACKS[Math.floor(Math.random() * MEMORY_IMAGE_FALLBACKS.length)];
+};
+
+const buildMemoryImagePrompt = (title: string, story?: string) => {
+  const safeTitle = (title || 'Precious memory').trim();
+  const safeStory = (story || '').replace(/\s+/g, ' ').trim();
+  const snippet = safeStory.length > 260 ? `${safeStory.slice(0, 257)}…` : safeStory;
+  return `Gentle watercolor illustration, warm nostalgic lighting, soft focus. Depict "${safeTitle}" memory. Scene inspiration: ${snippet || 'family gathering outdoors at sunset'}. Cozy, hopeful, caring.`;
+};
+
+export async function generateMemoryImage(title: string, story?: string): Promise<string> {
+  try {
+    const prompt = buildMemoryImagePrompt(title, story);
+    const encodedPrompt = encodeURIComponent(prompt);
+    const seed = Math.floor(Math.random() * 1_000_000);
+    return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=768&height=512&seed=${seed}&n=1`;
+  } catch (error) {
+    console.warn('Memory image prompt failed, using fallback.', error);
+    return getMemoryImageFallback();
+  }
+}
 
 // Supabase client (only initialized in prod mode when keys are present)
 let supabase: SupabaseClient | null = null;
@@ -480,6 +510,50 @@ export async function getChatHistory(userId: string, limit: number = 50): Promis
     return data || [];
   } catch (error) {
     console.error('Failed to fetch chat history:', error);
+    return [];
+  }
+}
+
+/**
+ * Get saved memories for a user
+ */
+export async function getMemories(
+  userId: string,
+  limit: number = 50
+): Promise<Array<MemoryJSON & { imageUrl?: string | null; story?: string; timestamp?: string }>> {
+  if (!supabase) {
+    console.warn('⚠️ Supabase not initialized – returning empty memories list');
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('memories')
+      .select('memory, timestamp')
+      .eq('user_id', userId)
+      .order('timestamp', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      if (error.code === 'PGRST205') {
+        console.warn('⚠️ Table "memories" does not exist in database. Returning empty memories list.');
+        return [];
+      }
+      console.error('Failed to fetch memories from Supabase:', error);
+      return [];
+    }
+
+    return (data ?? []).map((row: any) => {
+      const memory = (row.memory || {}) as MemoryJSON & { image_url?: string | null; story?: string };
+      return {
+        ...memory,
+        story: memory.story ?? memory.story_3_sentences,
+        imageUrl: memory.image_url ?? (memory as any).imageUrl ?? null,
+        timestamp: row.timestamp,
+      };
+    });
+  } catch (error) {
+    console.error('Failed to fetch memories:', error);
     return [];
   }
 }
