@@ -184,7 +184,13 @@ export async function saveToSupabase(table: string, data: any): Promise<boolean>
 /**
  * Supabase Auth: Sign up a new user with email/password
  */
-type AuthResult = { success: boolean; userId?: string; token?: string; error?: string };
+type AuthResult = {
+  success: boolean;
+  userId?: string;
+  token?: string;
+  fullName?: string | null;
+  error?: string;
+};
 
 export async function signUpUser(params: {
   email: string;
@@ -236,7 +242,7 @@ export async function signUpUser(params: {
     });
 
     const token = issueAuthToken(userId);
-    return { success: true, userId, token };
+    return { success: true, userId, token, fullName: params.fullName ?? null };
   } catch (error: any) {
     console.error('Unexpected signUp error:', error);
     return { success: false, error: error.message || 'Unable to sign up right now.' };
@@ -258,7 +264,7 @@ export async function signInUser(params: {
     const email = normalizeEmail(params.email);
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, passcode_hash')
+      .select('id, passcode_hash, name')
       .eq('email', email)
       .maybeSingle();
 
@@ -276,10 +282,42 @@ export async function signInUser(params: {
     }
 
     const token = issueAuthToken(user.id);
-    return { success: true, userId: user.id, token };
+    return { success: true, userId: user.id, token, fullName: (user as any).name ?? null };
   } catch (error: any) {
     console.error('Unexpected signIn error:', error);
     return { success: false, error: error.message || 'Unable to log in right now.' };
+  }
+}
+
+/**
+ * Fetch core user profile (name) from Supabase
+ */
+export async function getUserProfile(
+  userId: string
+): Promise<{ id: string; name: string | null } | null> {
+  if (!supabase) {
+    throw new Error('Supabase client not initialized – cannot fetch user profile.');
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id, name')
+      .eq('id', userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        // Not found
+        return null;
+      }
+      throw error;
+    }
+
+    return data || null;
+  } catch (error) {
+    console.error('Failed to fetch user profile:', error);
+    throw error;
   }
 }
 
@@ -425,17 +463,35 @@ export async function getMemories(
 export async function generateChatReply(
   userInput: string,
   history: { role: 'user' | 'amily'; text: string }[] = [],
-  isFirstTurn: boolean = false
+  isFirstTurn: boolean = false,
+  options: { avoidTopics?: string[] } = {}
 ): Promise<string> {
   if (!config.keys.gemini) {
     throw new Error('Gemini API key is required for chat generation.');
   }
+
+  const sanitizedAvoidTopics =
+    options.avoidTopics
+      ?.map((topic) =>
+        topic
+          ?.replace(/[^a-z0-9\s'-]/gi, '')
+          ?.trim()
+          ?.toLowerCase()
+      )
+      .filter((topic) => topic && topic.length > 1) ?? [];
+
+  const avoidInstruction = sanitizedAvoidTopics.length
+    ? ` Avoid bringing up these sensitive topics unless the user specifically asks: ${sanitizedAvoidTopics
+        .slice(-6)
+        .join(', ')}. If they mention them, acknowledge gently and steer toward safer ground.`
+    : '';
 
   const systemInstruction =
     'You are Amily, a gentle, patient companion for elderly users. ' +
     'You speak slowly, in short, simple sentences. ' +
     'You avoid technical language. ' +
     'You respond with warmth, reassurance, and clear, kind suggestions. ' +
+    avoidInstruction +
     (isFirstTurn
       ? 'This is the first conversation today. Gently check if they have taken their pills, eaten, and had some water, then respond warmly.'
       : '');

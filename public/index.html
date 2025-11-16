@@ -79,7 +79,7 @@
     <script type="text/babel" src="/components/tabs/ChatTab.jsx"></script>
     <script type="text/babel" src="/components/tabs/BuddyTab.jsx"></script>
     <script type="text/babel">
-      const { useState } = React;
+      const { useState, useEffect } = React;
       const { createRoot } = ReactDOM;
       const Icons = window.AmilyIcons || {};
       const {
@@ -108,6 +108,7 @@
       const STORAGE_KEYS = {
         token: "amily:token",
         user: "amily:user",
+        userName: "amily:user:name",
       };
       const getSafeStorage = () => {
         if (typeof window === "undefined") return null;
@@ -318,7 +319,11 @@
               throw new Error(data.error || "Login failed");
             }
             setStatus({ type: "success", message: "Welcome back!" });
-            onAuthSuccess?.(data.userId || data.user?.id || "demo-user", data.token || null);
+            onAuthSuccess?.(
+              data.userId || data.user?.id || "demo-user",
+              data.token || null,
+              data.fullName || data.name || null
+            );
           } catch (error) {
             setStatus({ type: "error", message: error.message });
           }
@@ -395,7 +400,7 @@
             const res = await fetch("/api/auth/signup", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ email, password, name }),
+              body: JSON.stringify({ email, password, name, fullName: name }),
             });
             const data = await res.json();
             if (!res.ok) {
@@ -405,7 +410,11 @@
               type: "success",
               message: "Account created! You can sign in now.",
             });
-            onAuthSuccess?.(data.userId || data.user?.id || "demo-user", data.token || null);
+            onAuthSuccess?.(
+              data.userId || data.user?.id || "demo-user",
+              data.token || null,
+              data.fullName || name || null
+            );
           } catch (error) {
             setStatus({ type: "error", message: error.message });
           }
@@ -486,10 +495,12 @@
       function App() {
         const initialToken = readStoredValue(STORAGE_KEYS.token);
         const initialUserId = readStoredValue(STORAGE_KEYS.user) || "demo-user";
+        const initialUserName = readStoredValue(STORAGE_KEYS.userName) || "Companion friend";
         const [currentPage, setCurrentPage] = useState(initialToken ? "chat" : "home");
         const [isLoggedIn, setIsLoggedIn] = useState(Boolean(initialToken));
         const [authToken, setAuthToken] = useState(initialToken);
         const [activeUserId, setActiveUserId] = useState(initialUserId);
+        const [activeUserName, setActiveUserName] = useState(initialUserName);
         const handleNavigate = (pageId) => {
           if (isLoggedIn) {
             if (!appPages.includes(pageId)) return;
@@ -501,13 +512,16 @@
           }
           window.scrollTo({ top: 0, behavior: "smooth" });
         };
-        const handleAuthSuccess = (newUserId = "demo-user", token = null) => {
+        const handleAuthSuccess = (newUserId = "demo-user", token = null, fullName = null) => {
           const resolvedUserId = newUserId || "demo-user";
+          const resolvedName = (fullName && fullName.trim()) || "Companion friend";
           setIsLoggedIn(true);
           setActiveUserId(resolvedUserId);
           setAuthToken(token);
+          setActiveUserName(resolvedName);
           writeStoredValue(STORAGE_KEYS.user, resolvedUserId);
           writeStoredValue(STORAGE_KEYS.token, token || null);
+          writeStoredValue(STORAGE_KEYS.userName, resolvedName);
           setCurrentPage("chat");
           window.AmilyWellness?.setUser?.(resolvedUserId);
         };
@@ -515,15 +529,45 @@
           setIsLoggedIn(false);
           setActiveUserId("demo-user");
           setAuthToken(null);
+          setActiveUserName("Companion friend");
           setCurrentPage("home");
           writeStoredValue(STORAGE_KEYS.user, "demo-user");
           writeStoredValue(STORAGE_KEYS.token, null);
+          writeStoredValue(STORAGE_KEYS.userName, "Companion friend");
           window.AmilyWellness?.setUser?.("demo-user");
         };
 
         useEffect(() => {
           window.AmilyWellness?.setUser?.(activeUserId || "demo-user");
         }, [activeUserId]);
+
+        useEffect(() => {
+          if (!isLoggedIn || !authToken) return;
+          if (activeUserName && activeUserName !== "Companion friend") return;
+
+          let cancelled = false;
+          fetch("/api/profile", {
+            headers: {
+              Authorization: `Bearer ${authToken}`,
+            },
+          })
+            .then((res) => res.json().catch(() => null))
+            .then((payload) => {
+              if (cancelled) return;
+              if (payload?.success && payload.data?.name) {
+                const fetchedName = payload.data.name;
+                setActiveUserName(fetchedName);
+                writeStoredValue(STORAGE_KEYS.userName, fetchedName);
+              }
+            })
+            .catch(() => {
+              // Non-critical
+            });
+
+          return () => {
+            cancelled = true;
+          };
+        }, [isLoggedIn, authToken, activeUserId, activeUserName]);
         const features = [
           {
             icon: ChatBubbleIcon,
@@ -583,7 +627,7 @@
                 <MemoriesTab userId={activeUserId} authToken={authToken} />
               )}{" "}
               {isLoggedIn && currentPage === "wellness" && WellnessTab && (
-                <WellnessTab userId={activeUserId} authToken={authToken} />
+                <WellnessTab userId={activeUserId} authToken={authToken} userName={activeUserName} />
               )}{" "}
               {isLoggedIn && currentPage === "chat" && ChatTab && (
                 <ChatTab userId={activeUserId} authToken={authToken} />
@@ -606,8 +650,7 @@
               <div className="max-w-6xl mx-auto rounded-[32px] border border-[#f4d3b4] bg-white/90 p-6 text-center text-sm text-[#6b6b6b]">
                 {" "}
                 <p>
-                  Amily Companion � Built for Junction Espoo 2025 � Background
-                  #FFFFF0, main text #545454, accent #db7758.
+                  Amily Companion � Built for Junction Espoo 2025 � 
                 </p>{" "}
               </div>{" "}
             </footer>{" "}

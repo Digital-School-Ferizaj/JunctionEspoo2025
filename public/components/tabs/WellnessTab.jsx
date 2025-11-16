@@ -65,9 +65,21 @@ const formatTimestamp = (value) => {
     }
 };
 
-function WellnessTab({ userId = 'demo-user', authToken = null }) {
+const getNameInitials = (name) => {
+    if (!name) return 'AP';
+    return name
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((word) => word[0]?.toUpperCase())
+        .join('')
+        .slice(0, 2) || 'AP';
+};
+
+function WellnessTab({ userId = 'demo-user', authToken = null, userName = 'Companion friend' }) {
+    const resolvedName = (userName || '').trim() || 'Companion friend';
     const profile = {
-        name: 'Evelyn Parker',
+        name: resolvedName,
+        initials: getNameInitials(resolvedName),
         age: 78,
         city: 'Espoo',
         note: 'Prefers afternoon chats and short morning walks whenever the paths are dry.',
@@ -300,7 +312,7 @@ function WellnessTab({ userId = 'demo-user', authToken = null }) {
                     <div className="rounded-[32px] border border-[#f4d3b4] bg-white/90 shadow-lg p-6 space-y-6">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                             <div className="w-20 h-20 rounded-3xl bg-[#fde9dc] flex items-center justify-center text-[#db7758] text-3xl font-bold">
-                                {profile.name.slice(0, 2)}
+                                {profile.initials}
                             </div>
                             <div className="space-y-1">
                                 <h3 className="text-2xl font-bold">{profile.name}</h3>

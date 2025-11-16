@@ -29,6 +29,7 @@ import {
   getChatHistory,
   generateChatReply,
   getMemories,
+  getUserProfile,
   GEMINI_CHAT_MODEL,
   ELEVENLABS_TTS_MODEL,
   resolveUserIdFromToken,
@@ -55,9 +56,66 @@ import {
 type ChatMemory = {
   lastEmotion?: 'stressed' | 'confused' | 'lonely' | 'calm';
   reminderAsked?: boolean;
+  avoidTopics?: Set<string>;
 };
 
 const chatMemory = new Map<string, ChatMemory>();
+
+const DISCOMFORT_PATTERNS: { regex: RegExp; capture?: 'before' | 'after' }[] = [
+  {
+    regex: /(.*?)\b(?:makes|make)s?\s+me\s+(?:uneasy|uncomfortable|nervous|anxious|upset|sad|scared)\b/gi,
+    capture: 'before',
+  },
+  {
+    regex: /\b(?:please\s+)?(?:don't|do not)\s+(?:talk|speak|go)\s+about\s+([^.!?]+)/gi,
+    capture: 'after',
+  },
+  {
+    regex: /\b(?:don't|do not)\s+mention\s+([^.!?]+)/gi,
+    capture: 'after',
+  },
+  {
+    regex: /\bi\s+don't\s+like\s+talking\s+about\s+([^.!?]+)/gi,
+    capture: 'after',
+  },
+  {
+    regex: /\b(?:avoid|stop)\s+talking\s+about\s+([^.!?]+)/gi,
+    capture: 'after',
+  },
+];
+
+const normalizeTopic = (raw?: string | null) => {
+  if (!raw) return null;
+  return raw
+    .replace(/(?:about|on|of)\s+$/i, '')
+    .replace(/[^a-z0-9\s'-]/gi, '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .slice(0, 80) || null;
+};
+
+const extractDiscomfortTopics = (text: string): string[] => {
+  if (!text) return [];
+  const topics = new Set<string>();
+  for (const pattern of DISCOMFORT_PATTERNS) {
+    let match: RegExpExecArray | null;
+    const regex = new RegExp(pattern.regex);
+    while ((match = regex.exec(text)) !== null) {
+      const captured =
+        pattern.capture === 'before'
+          ? match[1]
+          : pattern.capture === 'after'
+          ? match[1]
+          : match[1] || match[0];
+      const normalized = normalizeTopic(captured);
+      if (normalized && normalized.length > 2) {
+        topics.add(normalized);
+      }
+    }
+  }
+  return Array.from(topics).slice(0, 5);
+};
 
 const app = express();
 
@@ -158,7 +216,14 @@ app.post('/api/checkin', async (req: Request, res: Response) => {
  */
 app.post('/api/auth/signup', async (req: Request, res: Response) => {
   try {
-    const { email, password, fullName, supportedPerson } = req.body;
+    const { email, password, fullName, supportedPerson, name } = req.body;
+
+    const providedFullName =
+      typeof fullName === 'string' && fullName.trim().length > 0
+        ? fullName.trim()
+        : typeof name === 'string' && name.trim().length > 0
+        ? name.trim()
+        : undefined;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -167,7 +232,7 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
       });
     }
 
-    const result = await signUpUser({ email, password, fullName, supportedPerson });
+    const result = await signUpUser({ email, password, fullName: providedFullName, supportedPerson });
 
     if (!result.success) {
       return res.status(400).json({
@@ -180,6 +245,7 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
       success: true,
       userId: result.userId,
       token: result.token,
+      fullName: result.fullName,
       message: 'Account created. Please check your email to confirm if required.',
     });
   } catch (error) {
@@ -218,6 +284,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
       success: true,
       userId: result.userId,
       token: result.token,
+      fullName: result.fullName,
       message: 'Logged in successfully.',
     });
   } catch (error) {
@@ -281,6 +348,13 @@ app.post('/api/chatbox', async (req: Request, res: Response) => {
     const firstTurn = !memory.reminderAsked;
 
     memory.reminderAsked = true;
+
+    const newDiscomfortTopics = extractDiscomfortTopics(input);
+    if (newDiscomfortTopics.length) {
+      memory.avoidTopics = memory.avoidTopics || new Set<string>();
+      newDiscomfortTopics.forEach((topic) => memory.avoidTopics?.add(topic));
+    }
+
     chatMemory.set(trimmedUserId, memory);
 
     const persistChatMessage = (role: 'user' | 'amily', text: string) => {
@@ -362,8 +436,12 @@ app.post('/api/chatbox', async (req: Request, res: Response) => {
         text: row.text as string,
       })) ?? [];
 
+    const avoidTopics = memory.avoidTopics ? Array.from(memory.avoidTopics).slice(-8) : [];
+
     // Generate AI-powered reply with conversation context
-    const replyText = await generateChatReply(input, historyForAI, firstTurn);
+    const replyText = await generateChatReply(input, historyForAI, firstTurn, {
+      avoidTopics,
+    });
     const ttsText = formatForTTS(replyText, { includeReassurance: false });
     
     // Generate audio using ElevenLabs TTS
@@ -596,6 +674,35 @@ app.get('/api/preferences/:userId', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Could not load your settings right now.',
+    });
+  }
+});
+
+/**
+ * GET /api/profile
+ * Fetch authenticated user's profile details
+ */
+app.get('/api/profile', async (req: Request, res: Response) => {
+  try {
+    const resolvedUserId = resolveRequestUserId(req);
+    if (!resolvedUserId) {
+      return res.status(401).json({
+        success: false,
+        error: 'Authentication required.',
+      });
+    }
+
+    const profile = await getUserProfile(resolvedUserId);
+
+    res.json({
+      success: true,
+      data: profile ?? { id: resolvedUserId, name: null },
+    });
+  } catch (error) {
+    console.error('Profile fetch error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Could not load profile.',
     });
   }
 });
