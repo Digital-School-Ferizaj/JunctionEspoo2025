@@ -1,7 +1,7 @@
 const { useState } = React;
 const { ShieldIcon, PhoneIcon } = window.AmilyIcons;
 
-function SafetyTab() {
+function SafetyTab({ userId = 'demo-user', authToken = null }) {
     const [lastAction, setLastAction] = useState(null);
     const contacts = [
         {
@@ -37,9 +37,12 @@ function SafetyTab() {
         try {
             await fetch('/api/safety/emergency', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+                },
                 body: JSON.stringify({
-                    userId: 'demo-user',
+                    userId: userId || 'demo-user',
                     type,
                     location: { lat: 40.7128, lng: -74.006 },
                 }),
