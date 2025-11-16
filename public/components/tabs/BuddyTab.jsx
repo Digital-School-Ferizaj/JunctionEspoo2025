@@ -1,35 +1,60 @@
-const { useState } = React;
+const { useState, useEffect, useCallback } = React;
 const { BuddyIcon } = window.AmilyIcons;
 
-function BuddyTab() {
+function BuddyTab({ userId = 'demo-user', authToken = null }) {
     const [lastHello, setLastHello] = useState(null);
-    const buddies = [
-        {
-            id: 1,
-            name: 'Leena H.',
-            distance: '1 km away',
-            interests: ['Knitting', 'Choir songs', 'Coffee walks'],
-            availability: 'Most afternoons',
-        },
-        {
-            id: 2,
-            name: 'Mika P.',
-            distance: '3 km away',
-            interests: ['Fishing stories', 'Jazz radio', 'Gardening tips'],
-            availability: 'Evenings and weekends',
-        },
-        {
-            id: 3,
-            name: 'Aada L.',
-            distance: 'Same building',
-            interests: ['Crosswords', 'Old films', 'Tea tasting'],
-            availability: 'Every morning',
-        },
-    ];
+    const [buddies, setBuddies] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
 
-    const handleHello = (buddy) => {
-        setLastHello({ name: buddy.name, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
-    };
+    const fetchBuddies = useCallback(() => {
+        const controller = new AbortController();
+        const loadProfiles = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                const params = new URLSearchParams();
+                if (userId) {
+                    params.set('excludeUserId', userId);
+                }
+                const query = params.toString();
+                const response = await fetch(`/api/buddies${query ? `?${query}` : ''}`, {
+                    headers: {
+                        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+                    },
+                    signal: controller.signal,
+                });
+                let payload = null;
+                try {
+                    payload = await response.json();
+                } catch {
+                    payload = null;
+                }
+                if (!response.ok || !payload?.success) {
+                    throw new Error(payload?.error || 'Unable to load nearby buddies.');
+                }
+                if (!controller.signal.aborted) {
+                    setBuddies(Array.isArray(payload.data) ? payload.data : []);
+                }
+            } catch (fetchError) {
+                if (controller.signal.aborted) return;
+                console.warn('Unable to fetch buddy list', fetchError);
+                setError(fetchError?.message || 'Unable to load nearby buddies right now.');
+                setBuddies([]);
+            } finally {
+                if (!controller.signal.aborted) {
+                    setIsLoading(false);
+                }
+            }
+        };
+        loadProfiles();
+        return controller;
+    }, [authToken, userId]);
+
+    useEffect(() => {
+        const controller = fetchBuddies();
+        return () => controller.abort();
+    }, [fetchBuddies]);
 
     return (
         <section className="px-4 py-12 pb-28 bg-[#FFFFF0]">
@@ -44,52 +69,48 @@ function BuddyTab() {
                 </div>
 
                 <div className="space-y-4">
-                    {buddies.map((buddy) => (
-                        <div key={buddy.id} className="rounded-[32px] border border-[#f4d3b4] bg-white/90 shadow-md p-6 flex flex-col gap-4">
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                <div>
-                                    <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#db7758]">{buddy.distance}</p>
-                                    <h3 className="text-2xl font-bold">{buddy.name}</h3>
-                                    <p className="text-sm text-[#6b6b6b]">Available: {buddy.availability}</p>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => handleHello(buddy)}
-                                    className="px-6 py-3 rounded-2xl bg-[#db7758] text-white font-semibold shadow-md hover:bg-[#c86245]"
-                                >
-                                    Say hello
-                                </button>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                {buddy.interests.map((interest) => (
-                                    <span key={interest} className="px-4 py-2 rounded-full bg-[#fffaf0] border border-[#f4d3b4] text-sm text-[#545454]">
-                                        {interest}
-                                    </span>
-                                ))}
-                            </div>
+                    {isLoading ? (
+                        <div className="rounded-[32px] border border-dashed border-[#f4d3b4] bg-white/85 p-6 text-center text-sm text-[#6b6b6b]">
+                            Gathering nearby friends...
                         </div>
-                    ))}
-                </div>
-
-                <div className="rounded-[32px] border border-[#f4d3b4] bg-white/90 shadow-lg p-6 space-y-3">
-                    <h3 className="text-xl font-bold">Family can supervise matches</h3>
-                    <p className="text-sm text-[#6b6b6b]">
-                        When someone taps "Say hello", the family portal gets a note. Everyone stays connected yet safe.
-                    </p>
-                    {lastHello ? (
-                        <div className="rounded-2xl bg-[#fff6ea] border border-[#f5d5c2] p-4 flex items-center justify-between text-sm">
-                            <div>
-                                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#db7758]">Last wave sent</p>
-                                <p>
-                                    {lastHello.name} at {lastHello.time}
-                                </p>
-                            </div>
-                            <span className="text-sm font-semibold text-[#db7758]">Pending reply</span>
+                    ) : error ? (
+                        <div className="rounded-[32px] border border-[#f4b0a0] bg-[#fff3f0] p-6 space-y-3 text-sm text-[#a6523b]">
+                            <p>{error}</p>
+                            <button
+                                type="button"
+                                onClick={fetchBuddies}
+                                className="px-4 py-2 rounded-2xl bg-[#db7758] text-white font-semibold shadow-md"
+                            >
+                                Try again
+                            </button>
+                        </div>
+                    ) : buddies.length === 0 ? (
+                        <div className="rounded-[32px] border border-[#f4d3b4] bg-white/90 p-6 text-sm text-[#6b6b6b]">
+                            No other users are visible yet. Check back soon as the circle grows.
                         </div>
                     ) : (
-                        <p className="text-sm text-[#6b6b6b]">No waves yet. Try greeting the closest buddy above.</p>
+                        buddies.map((buddy) => (
+                            <div key={buddy.id} className="rounded-[32px] border border-[#f4d3b4] bg-white/90 shadow-md p-6 flex flex-col gap-4">
+                                <div>
+                                    <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#db7758]">
+                                        {buddy.distance || 'Nearby'}
+                                    </p>
+                                    <h3 className="text-2xl font-bold">{buddy.name}</h3>
+                                    <p className="text-sm text-[#6b6b6b]">Available: {buddy.availability || 'Shares schedule privately'}</p>
+                                    {buddy.note && <p className="text-sm text-[#6b6b6b] mt-1">{buddy.note}</p>}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    {(buddy.interests || ['Friendly chats']).map((interest) => (
+                                        <span key={`${buddy.id || buddy.name}-${interest}`} className="px-4 py-2 rounded-full bg-[#fffaf0] border border-[#f4d3b4] text-sm text-[#545454]">
+                                            {interest}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        ))
                     )}
                 </div>
+
             </div>
         </section>
     );

@@ -28,6 +28,7 @@ import {
   signInUser,
   getChatHistory,
   generateChatReply,
+  getBuddyProfiles,
   getMemories,
   getUserProfile,
   GEMINI_CHAT_MODEL,
@@ -154,7 +155,6 @@ app.use((req, _res, next) => {
 app.post('/api/checkin', async (req: Request, res: Response) => {
   try {
     const { userId, userInput, mood } = req.body;
-    const resolvedUserId = resolveRequestUserId(req, userId) || 'anonymous';
     
     // Detect emotion if user provided input
     const detectedEmotion = userInput ? detectEmotion(userInput) : 'calm';
@@ -181,7 +181,7 @@ app.post('/api/checkin', async (req: Request, res: Response) => {
     
     // Save to database
     await saveToSupabase('check_ins', {
-      user_id: resolvedUserId,
+      user_id: userId,
       plan: validatedPlan,
       timestamp: new Date().toISOString(),
     });
@@ -189,7 +189,7 @@ app.post('/api/checkin', async (req: Request, res: Response) => {
     // Notify care circle if mood is low
     if (validatedPlan.mood === 'low') {
       await triggerN8NWorkflow('mood_alert', {
-        userId: resolvedUserId,
+        userId,
         mood: 'low',
         timestamp: new Date().toISOString(),
       });
@@ -244,8 +244,8 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
     res.json({
       success: true,
       userId: result.userId,
-      token: result.token,
-      fullName: result.fullName,
+      token: result.token ?? null,
+      fullName: result.fullName ?? null,
       message: 'Account created. Please check your email to confirm if required.',
     });
   } catch (error) {
@@ -283,8 +283,8 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     res.json({
       success: true,
       userId: result.userId,
-      token: result.token,
-      fullName: result.fullName,
+      token: result.token ?? null,
+      fullName: result.fullName ?? null,
       message: 'Logged in successfully.',
     });
   } catch (error) {
@@ -302,9 +302,8 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
  */
 app.get('/api/chatbox/history/:userId', async (req: Request, res: Response) => {
   try {
-    const requestedUserId = req.params.userId;
-    const resolvedUserId = resolveRequestUserId(req, requestedUserId) || requestedUserId;
-    const history = await getChatHistory(resolvedUserId, 50);
+    const { userId } = req.params;
+    const history = await getChatHistory(userId, 50);
 
     const messages = history.map((row: any) => ({
       type: row.role === 'user' ? 'user' : 'amily',
@@ -342,8 +341,7 @@ app.post('/api/chatbox', async (req: Request, res: Response) => {
       });
     }
 
-    const resolvedUserId = resolveRequestUserId(req, userId) || 'anonymous';
-    const trimmedUserId = String(resolvedUserId || 'anonymous');
+    const trimmedUserId = String(userId || 'anonymous');
     const memory = chatMemory.get(trimmedUserId) || {};
     const firstTurn = !memory.reminderAsked;
 
@@ -477,7 +475,6 @@ app.post('/api/chatbox', async (req: Request, res: Response) => {
 app.post('/api/memory', async (req: Request, res: Response) => {
   try {
     const { userId, storyInput } = req.body;
-    const resolvedUserId = resolveRequestUserId(req, userId) || 'anonymous';
     
     if (!storyInput || storyInput.trim().length === 0) {
       return res.status(400).json({
@@ -518,7 +515,7 @@ app.post('/api/memory', async (req: Request, res: Response) => {
     
     // Save memory to database
     await saveToSupabase('memories', {
-      user_id: resolvedUserId,
+      user_id: userId,
       memory: memoryRecord,
       timestamp: new Date().toISOString(),
     });
@@ -546,7 +543,7 @@ app.post('/api/memory', async (req: Request, res: Response) => {
 app.get('/api/memory/:userId', async (req: Request, res: Response) => {
   try {
     const requestedUserId = req.params.userId;
-    const resolvedUserId = resolveRequestUserId(req, requestedUserId) || requestedUserId;
+    const resolvedUserId = requestedUserId;
     const limitParam = parseInt(String(req.query.limit ?? '25'), 10);
     const limit = Number.isFinite(limitParam) ? Math.min(Math.max(limitParam, 1), 100) : 25;
 
@@ -583,7 +580,6 @@ app.get('/api/memory/:userId', async (req: Request, res: Response) => {
 app.post('/api/buddy', async (req: Request, res: Response) => {
   try {
     const { userId, messageFrom, messageText } = req.body;
-    const resolvedUserId = resolveRequestUserId(req, userId) || 'anonymous';
     
     // Generate simple summary (no AI model)
     const validatedSummary: SummaryJSON = {
@@ -600,12 +596,16 @@ app.post('/api/buddy', async (req: Request, res: Response) => {
     const audioUrl = await generateTTS(ttsText);
     
     // Save interaction
-    await saveToSupabase('buddy_messages', {
-      user_id: resolvedUserId,
-      message_from: messageFrom,
-      summary: validatedSummary,
-      timestamp: new Date().toISOString(),
-    });
+    await saveToSupabase(
+      'buddy_messages',
+      {
+        user_id: userId,
+        message_from: messageFrom,
+        summary: validatedSummary,
+        timestamp: new Date().toISOString(),
+      },
+      { silentMissingTable: true }
+    );
     
     res.json({
       success: true,
@@ -619,6 +619,34 @@ app.post('/api/buddy', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: "I couldn't read that message... let's check again.",
+    });
+  }
+});
+
+/**
+ * GET /api/buddies
+ * List buddy profiles (all other users)
+ */
+app.get('/api/buddies', async (req: Request, res: Response) => {
+  try {
+    const { limit, excludeUserId } = req.query;
+    const parsedLimit = typeof limit === 'string' ? parseInt(limit, 10) : NaN;
+    const requestedLimit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 8;
+    const excludeId =
+      typeof excludeUserId === 'string' && excludeUserId.trim().length ? excludeUserId.trim() : null;
+
+    const buddies = await getBuddyProfiles(requestedLimit, excludeId);
+
+    res.json({
+      success: true,
+      data: buddies,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Buddy list fetch error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Could not load buddy list right now.',
     });
   }
 });
@@ -661,9 +689,8 @@ app.get('/api/health', (_req: Request, res: Response) => {
  */
 app.get('/api/preferences/:userId', async (req: Request, res: Response) => {
   try {
-    const requestedUserId = req.params.userId;
-    const resolvedUserId = resolveRequestUserId(req, requestedUserId) || requestedUserId;
-    const preferences = await getUserPreferences(resolvedUserId);
+    const { userId } = req.params;
+    const preferences = await getUserPreferences(userId);
     
     res.json({
       success: true,
@@ -714,7 +741,6 @@ app.get('/api/profile', async (req: Request, res: Response) => {
 app.post('/api/empathy', async (req: Request, res: Response) => {
   try {
     const { userInput } = req.body;
-    const resolvedUserId = resolveRequestUserId(req, req.body?.userId) || 'unknown';
     
     // Check for safety concerns first
     const safetyAlert = detectSafetyConcerns(userInput);
@@ -722,7 +748,7 @@ app.post('/api/empathy', async (req: Request, res: Response) => {
     if (safetyAlert.level === 'emergency' || safetyAlert.level === 'urgent') {
       // Handle emergency
       const emergencyResult = await handleEmergency(
-        resolvedUserId,
+        req.body.userId || 'unknown',
         safetyAlert,
         undefined,
         userInput
@@ -778,12 +804,11 @@ app.post('/api/empathy', async (req: Request, res: Response) => {
 app.post('/api/safety/vitals', async (req: Request, res: Response) => {
   try {
     const { userId, vitals }: { userId: string; vitals: VitalsData } = req.body;
-    const resolvedUserId = resolveRequestUserId(req, userId) || 'anonymous';
     
     const safetyAlert = analyzeVitals(vitals);
     
     if (safetyAlert.level === 'emergency' || safetyAlert.level === 'urgent') {
-      const emergencyResult = await handleEmergency(resolvedUserId, safetyAlert, vitals);
+      const emergencyResult = await handleEmergency(userId, safetyAlert, vitals);
       const reassurance = getEmergencyReassurance(safetyAlert);
       const audioUrl = await generateTTS(reassurance);
       
@@ -819,7 +844,6 @@ app.post('/api/safety/vitals', async (req: Request, res: Response) => {
 app.post('/api/safety/emergency', async (req: Request, res: Response) => {
   try {
     const { userId, type, location } = req.body;
-    const resolvedUserId = resolveRequestUserId(req, userId) || 'anonymous';
     
     const safetyAlert = {
       level: 'emergency' as const,
@@ -834,7 +858,7 @@ app.post('/api/safety/emergency', async (req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
     };
     
-    const emergencyResult = await handleEmergency(resolvedUserId, safetyAlert, vitals);
+    const emergencyResult = await handleEmergency(userId, safetyAlert, vitals);
     const reassurance = getEmergencyReassurance(safetyAlert);
     const audioUrl = await generateTTS(reassurance);
     
@@ -862,11 +886,8 @@ app.post('/api/safety/emergency', async (req: Request, res: Response) => {
 app.get('/api/wellness/nudges', async (req: Request, res: Response) => {
   try {
     const { userId, timeOfDay = 'morning', mood = 'ok' } = req.query;
-    const providedUserId = typeof userId === 'string' ? userId : undefined;
-    const resolvedUserId = resolveRequestUserId(req, providedUserId);
-    const activeUserId = resolvedUserId || providedUserId;
     
-    if (!activeUserId) {
+    if (!userId) {
       return res.status(400).json({
         success: false,
         error: 'User ID is required.',
@@ -921,10 +942,9 @@ app.get('/api/wellness/nudges', async (req: Request, res: Response) => {
 app.post('/api/wellness/log', async (req: Request, res: Response) => {
   try {
     const { userId, type, value } = req.body;
-    const resolvedUserId = resolveRequestUserId(req, userId) || 'anonymous';
     
     await saveToSupabase('wellness_log', {
-      user_id: resolvedUserId,
+      user_id: userId,
       type,
       value,
       timestamp: new Date().toISOString(),
@@ -952,37 +972,6 @@ app.post('/api/wellness/log', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Could not log activity',
-    });
-  }
-});
-
-/**
- * POST /api/tts
- * Generate TTS audio for raw text (no AI response, just the text)
- */
-app.post('/api/tts', async (req: Request, res: Response) => {
-  try {
-    const { text } = req.body;
-
-    if (!text || typeof text !== 'string' || !text.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Text is required.',
-      });
-    }
-
-    const audioUrl = await generateTTS(text.trim());
-
-    res.json({
-      success: true,
-      audioUrl,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error('TTS generation error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Could not generate audio.',
     });
   }
 });

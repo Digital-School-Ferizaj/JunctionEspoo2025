@@ -13,20 +13,6 @@
       crossorigin
       src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js"
     ></script>
-    <script>
-      if (typeof React !== "undefined") {
-        window.React = window.React || React;
-        if (!window.React.default) {
-          window.React.default = window.React;
-        }
-      }
-      if (typeof ReactDOM !== "undefined") {
-        window.ReactDOM = window.ReactDOM || ReactDOM;
-        if (!window.ReactDOM.default) {
-          window.ReactDOM.default = window.ReactDOM;
-        }
-      }
-    </script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -70,7 +56,6 @@
   </head>
   <body class="bg-[#FFFFF0] text-[#545454]">
     <div id="root"></div>
-    <script src="/state/wellnessStore.js"></script>
     <script type="text/babel" src="/components/icons.jsx"></script>
     <script type="text/babel" src="/components/tabs/HomeTab.jsx"></script>
     <script type="text/babel" src="/components/tabs/SafetyTab.jsx"></script>
@@ -106,46 +91,42 @@
       } = Tabs;
       const appPages = ["memories", "wellness", "chat", "safety", "buddy"];
       const STORAGE_KEYS = {
+<<<<<<< HEAD
         token: "amily:token",
         user: "amily:user",
         userName: "amily:user:name",
+=======
+        user: "amily-active-user",
+        token: "amily-auth-token",
+        loggedIn: "amily-is-logged-in",
+>>>>>>> bbc297a44d9b5194f1b319aa06b7f20fe1ad1784
       };
-      const getSafeStorage = () => {
-        if (typeof window === "undefined") return null;
+      const readStoredValue = (key, fallback) => {
         try {
-          if (window.localStorage) return window.localStorage;
-        } catch (error) {
-          /* ignore */
-        }
-        try {
-          if (window.sessionStorage) return window.sessionStorage;
-        } catch (error) {
-          /* ignore */
-        }
-        return null;
-      };
-      const readStoredValue = (key) => {
-        const storage = getSafeStorage();
-        if (!storage) return null;
-        try {
-          return storage.getItem(key);
-        } catch (error) {
-          return null;
+          if (typeof window === "undefined" || !window.localStorage) {
+            return fallback;
+          }
+          const raw = window.localStorage.getItem(key);
+          return raw === null ? fallback : JSON.parse(raw);
+        } catch {
+          return fallback;
         }
       };
       const writeStoredValue = (key, value) => {
-        const storage = getSafeStorage();
-        if (!storage) return;
         try {
-          if (value) {
-            storage.setItem(key, value);
-          } else {
-            storage.removeItem(key);
+          if (typeof window === "undefined" || !window.localStorage) {
+            return;
           }
-        } catch (error) {
-          /* ignore */
+          if (value === null || value === undefined) {
+            window.localStorage.removeItem(key);
+          } else {
+            window.localStorage.setItem(key, JSON.stringify(value));
+          }
+        } catch {
+          // Ignore storage errors in demo mode
         }
       };
+      const initialLoggedIn = readStoredValue(STORAGE_KEYS.loggedIn, false);
       function FeatureCard({ icon: Icon, title, description, note }) {
         return (
           <div className="rounded-[28px] border border-[#f4d3b4] bg-white/90 shadow-md p-6 space-y-3">
@@ -319,11 +300,15 @@
               throw new Error(data.error || "Login failed");
             }
             setStatus({ type: "success", message: "Welcome back!" });
+<<<<<<< HEAD
             onAuthSuccess?.(
               data.userId || data.user?.id || "demo-user",
               data.token || null,
               data.fullName || data.name || null
             );
+=======
+            onAuthSuccess(data.userId, data.token || null);
+>>>>>>> bbc297a44d9b5194f1b319aa06b7f20fe1ad1784
           } catch (error) {
             setStatus({ type: "error", message: error.message });
           }
@@ -408,13 +393,17 @@
             }
             setStatus({
               type: "success",
-              message: "Account created! You can sign in now.",
+              message: "Account created! Redirecting...",
             });
+<<<<<<< HEAD
             onAuthSuccess?.(
               data.userId || data.user?.id || "demo-user",
               data.token || null,
               data.fullName || name || null
             );
+=======
+            onAuthSuccess(data.userId, data.token || null);
+>>>>>>> bbc297a44d9b5194f1b319aa06b7f20fe1ad1784
           } catch (error) {
             setStatus({ type: "error", message: error.message });
           }
@@ -493,6 +482,7 @@
         );
       }
       function App() {
+<<<<<<< HEAD
         const initialToken = readStoredValue(STORAGE_KEYS.token);
         const initialUserId = readStoredValue(STORAGE_KEYS.user) || "demo-user";
         const initialUserName = readStoredValue(STORAGE_KEYS.userName) || "Companion friend";
@@ -501,6 +491,16 @@
         const [authToken, setAuthToken] = useState(initialToken);
         const [activeUserId, setActiveUserId] = useState(initialUserId);
         const [activeUserName, setActiveUserName] = useState(initialUserName);
+=======
+        const [currentPage, setCurrentPage] = useState(initialLoggedIn ? "chat" : "home");
+        const [isLoggedIn, setIsLoggedIn] = useState(initialLoggedIn);
+        const [activeUserId, setActiveUserId] = useState(() =>
+          readStoredValue(STORAGE_KEYS.user, "demo-user")
+        );
+        const [authToken, setAuthToken] = useState(() =>
+          readStoredValue(STORAGE_KEYS.token, null)
+        );
+>>>>>>> bbc297a44d9b5194f1b319aa06b7f20fe1ad1784
         const handleNavigate = (pageId) => {
           if (isLoggedIn) {
             if (!appPages.includes(pageId)) return;
@@ -512,31 +512,48 @@
           }
           window.scrollTo({ top: 0, behavior: "smooth" });
         };
+<<<<<<< HEAD
         const handleAuthSuccess = (newUserId = "demo-user", token = null, fullName = null) => {
           const resolvedUserId = newUserId || "demo-user";
           const resolvedName = (fullName && fullName.trim()) || "Companion friend";
+=======
+        const handleAuthSuccess = (newUserId = "demo-user", token = null) => {
+          const resolvedId = newUserId || "demo-user";
+>>>>>>> bbc297a44d9b5194f1b319aa06b7f20fe1ad1784
           setIsLoggedIn(true);
-          setActiveUserId(resolvedUserId);
+          setActiveUserId(resolvedId);
           setAuthToken(token);
+<<<<<<< HEAD
           setActiveUserName(resolvedName);
           writeStoredValue(STORAGE_KEYS.user, resolvedUserId);
           writeStoredValue(STORAGE_KEYS.token, token || null);
           writeStoredValue(STORAGE_KEYS.userName, resolvedName);
+=======
+          writeStoredValue(STORAGE_KEYS.loggedIn, true);
+          writeStoredValue(STORAGE_KEYS.user, resolvedId);
+          writeStoredValue(STORAGE_KEYS.token, token);
+>>>>>>> bbc297a44d9b5194f1b319aa06b7f20fe1ad1784
           setCurrentPage("chat");
-          window.AmilyWellness?.setUser?.(resolvedUserId);
+          window.AmilyWellness?.setUser?.(resolvedId);
         };
         const handleLogout = () => {
           setIsLoggedIn(false);
           setActiveUserId("demo-user");
           setAuthToken(null);
+<<<<<<< HEAD
           setActiveUserName("Companion friend");
           setCurrentPage("home");
           writeStoredValue(STORAGE_KEYS.user, "demo-user");
           writeStoredValue(STORAGE_KEYS.token, null);
           writeStoredValue(STORAGE_KEYS.userName, "Companion friend");
+=======
+          writeStoredValue(STORAGE_KEYS.loggedIn, false);
+          writeStoredValue(STORAGE_KEYS.user, "demo-user");
+          writeStoredValue(STORAGE_KEYS.token, null);
+          setCurrentPage("home");
+>>>>>>> bbc297a44d9b5194f1b319aa06b7f20fe1ad1784
           window.AmilyWellness?.setUser?.("demo-user");
         };
-
         useEffect(() => {
           window.AmilyWellness?.setUser?.(activeUserId || "demo-user");
         }, [activeUserId]);
@@ -636,7 +653,7 @@
                 <SafetyTab userId={activeUserId} authToken={authToken} />
               )}{" "}
               {isLoggedIn && currentPage === "buddy" && BuddyTab && (
-                <BuddyTab />
+                <BuddyTab userId={activeUserId} authToken={authToken} />
               )}{" "}
               {!isLoggedIn && currentPage === "login" && (
                 <LoginPage onAuthSuccess={handleAuthSuccess} />
