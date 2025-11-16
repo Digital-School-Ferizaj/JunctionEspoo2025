@@ -187,20 +187,8 @@ function WellnessTab({ userId = 'demo-user', authToken = null, userName = 'Compa
     }, [fetchWellnessNudges]);
 
     const logHydrationToServer = (amount = 1) => {
-        fetch('/api/wellness/log', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-            },
-            body: JSON.stringify({
-                userId: userId || 'demo-user',
-                type: 'water',
-                value: amount,
-            }),
-        }).catch(() => {
-            // Non-blocking demo mode
-        });
+        // Database logging disabled; update local snapshot only
+        setHydration(getHydrationSnapshot());
     };
 
     const handleManualHydration = () => {
