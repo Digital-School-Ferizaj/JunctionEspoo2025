@@ -4,7 +4,7 @@
  * Detects emergency situations from voice input, vitals, and Apple Watch data
  */
 
-import { triggerN8NWorkflow } from './services';
+import { CARE_CIRCLE_EMAIL, triggerN8NWorkflow } from './services';
 
 // Emergency trigger phrases
 const EMERGENCY_PHRASES = [
@@ -66,6 +66,54 @@ export interface VitalsData {
   };
   timestamp: string;
 }
+
+const summarizeVitals = (vitals?: VitalsData): string => {
+  if (!vitals) {
+    return 'No vitals data provided.';
+  }
+  const parts: string[] = [];
+  if (typeof vitals.heartRate === 'number') {
+    parts.push(`Heart rate: ${vitals.heartRate} bpm`);
+  }
+  if (vitals.fallDetected) {
+    parts.push('Fall sensor triggered');
+  }
+  if (vitals.location) {
+    parts.push(`Location: (${vitals.location.lat.toFixed(4)}, ${vitals.location.lng.toFixed(4)})`);
+  }
+  parts.push(`Timestamp: ${vitals.timestamp || 'not recorded'}`);
+  return parts.join(' · ');
+};
+
+const buildEmergencyEmailReport = (
+  userId: string,
+  alert: SafetyAlert,
+  vitals?: VitalsData,
+  context?: string
+) => {
+  const reason = alert.detected.length ? alert.detected.join(', ') : 'unspecified concern';
+  const contextSnippet = context
+    ? context.length > 280
+      ? `${context.slice(0, 277)}…`
+      : context
+    : 'No transcript available.';
+
+  return [
+    `Emergency alert for ${userId}`,
+    '',
+    `Level: ${alert.level.toUpperCase()}`,
+    `Reasons: ${reason}`,
+    `Recommended actions: ${alert.actions.join(', ') || 'standard emergency protocol'}`,
+    '',
+    'Recent words:',
+    contextSnippet,
+    '',
+    'Vitals summary:',
+    summarizeVitals(vitals),
+    '',
+    'This message was generated automatically by Amily to keep the care circle informed.',
+  ].join('\n');
+};
 
 /**
  * Analyze text for safety concerns
@@ -188,6 +236,19 @@ export async function handleEmergency(
   console.log(`🚨 [EMERGENCY] User ${userId} - Level: ${alert.level}`);
   console.log(`   Detected: ${alert.detected.join(', ')}`);
   console.log(`   Actions: ${alert.actions.join(', ')}`);
+
+  if (alert.level === 'emergency') {
+    const report = buildEmergencyEmailReport(userId, alert, vitals, context);
+    triggerN8NWorkflow('weekly_report_email', {
+      userId,
+      email: CARE_CIRCLE_EMAIL,
+      subject: `Emergency alert for ${userId}`,
+      report,
+      timestamp: new Date().toISOString(),
+    }).catch((error) => {
+      console.warn('Emergency email workflow failed (non-blocking):', error);
+    });
+  }
   
   return {
     success,

@@ -34,6 +34,7 @@ import {
   GEMINI_CHAT_MODEL,
   ELEVENLABS_TTS_MODEL,
   resolveUserIdFromToken,
+  CARE_CIRCLE_EMAIL,
 } from './services';
 import {
   detectSafetyConcerns,
@@ -135,6 +136,60 @@ const getAuthTokenFromRequest = (req: Request): string | null => {
 
 const resolveRequestUserId = (req: Request, fallback?: string | null) => {
   return resolveUserIdFromToken(getAuthTokenFromRequest(req)) || fallback || null;
+};
+
+const WEEKLY_REPORT_LOOKBACK_DAYS = 7;
+
+const withinLastDays = (timestamp: string | null | undefined, days: number) => {
+  if (!timestamp) return false;
+  const value = new Date(timestamp);
+  if (Number.isNaN(value.getTime())) return false;
+  const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+  return value.getTime() >= cutoff;
+};
+
+const formatDuration = (count: number, label: string) =>
+  count === 1 ? `1 ${label}` : `${count} ${label}s`;
+
+const buildWeeklyReport = (params: {
+  userName: string;
+  chats: any[];
+  memories: any[];
+}) => {
+  const { userName, chats, memories } = params;
+  const windowChats = chats.filter((chat) => withinLastDays(chat.timestamp, WEEKLY_REPORT_LOOKBACK_DAYS));
+  const userMessages = windowChats.filter((chat) => chat.role === 'user');
+  const amilyMessages = windowChats.filter((chat) => chat.role !== 'user');
+  const lastThreeShares = userMessages
+    .slice(-3)
+    .map((msg) => `• "${msg.text?.slice(0, 160) ?? ''}"`)
+    .join('\n') || '• No new notes shared this week.';
+
+  const windowMemories = memories.filter((memory) => withinLastDays(memory.timestamp, WEEKLY_REPORT_LOOKBACK_DAYS));
+  const memoryHighlights =
+    windowMemories.length > 0
+      ? windowMemories.slice(-3).map((memory) => `• ${memory.title} (${memory.era})`).join('\n')
+      : '• No new memories were saved this week.';
+
+  const summaryLines = [
+    `${userName} had ${formatDuration(userMessages.length, 'chat message')} with Amily this week.`,
+    `${formatDuration(amilyMessages.length, 'response')} sent back with calm encouragement.`,
+    `${windowMemories.length > 0 ? `${userName} added ${formatDuration(windowMemories.length, 'new memory')}.` : 'No new memories were recorded.'}`,
+  ];
+
+  return [
+    `Weekly Care Report for ${userName}`,
+    '',
+    summaryLines.join(' '),
+    '',
+    'Recent things they shared:',
+    lastThreeShares,
+    '',
+    'Memory highlights:',
+    memoryHighlights,
+    '',
+    'This report is automatically generated from Amily chats and saved memories.',
+  ].join('\n');
 };
 
 // Middleware
@@ -619,6 +674,65 @@ app.post('/api/buddy', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: "I couldn't read that message... let's check again.",
+    });
+  }
+});
+
+/**
+ * POST /api/report/weekly
+ * Generate a weekly report from chats/memories and email it to the care circle
+ */
+app.post('/api/report/weekly', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.body as { userId?: string };
+
+    if (!userId || typeof userId !== 'string' || !userId.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'User ID is required.',
+      });
+    }
+
+    const trimmedUserId = userId.trim();
+
+    const [profile, chats, memories] = await Promise.all([
+      getUserProfile(trimmedUserId).catch(() => null),
+      getChatHistory(trimmedUserId, 200).catch(() => []),
+      getMemories(trimmedUserId, 20).catch(() => []),
+    ]);
+
+    const userName = profile?.name || 'Companion friend';
+    const formattedMemories = memories.map((memory: any) => ({
+      ...memory,
+      timestamp: memory?.timestamp ?? memory?.created_at ?? null,
+    }));
+
+    const report = buildWeeklyReport({
+      userName,
+      chats,
+      memories: formattedMemories,
+    });
+
+    triggerN8NWorkflow('weekly_report_email', {
+      userId: trimmedUserId,
+      email: CARE_CIRCLE_EMAIL,
+      subject: `Weekly report for ${userName}`,
+      report,
+    }).catch((emailError) => {
+      console.warn('Weekly report email workflow failed:', emailError);
+    });
+
+    res.json({
+      success: true,
+      sentTo: CARE_CIRCLE_EMAIL,
+      report,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('Weekly report error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Could not generate weekly report.',
     });
   }
 });

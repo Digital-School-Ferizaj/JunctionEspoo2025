@@ -12,6 +12,7 @@ import { type MemoryJSON } from './schemas';
 
 export const GEMINI_CHAT_MODEL = 'gemini-2.0-flash';
 export const ELEVENLABS_TTS_MODEL = 'eleven_monolingual_v1';
+export const CARE_CIRCLE_EMAIL = 'neziridiar6@gmail.com';
 
 const MEMORY_IMAGE_FALLBACKS = [
   'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80',
@@ -404,7 +405,7 @@ export async function signInUser(params: {
     const email = normalizeEmail(params.email);
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, passcode_hash, name')
+      .select('id, passcode_hash, name, email')
       .eq('email', email)
       .maybeSingle();
 
@@ -422,7 +423,17 @@ export async function signInUser(params: {
     }
 
     const token = issueAuthToken(user.id);
-    return { success: true, userId: user.id, token, fullName: (user as any).name ?? null };
+    const fallbackName =
+      typeof user?.email === 'string'
+        ? user.email.split('@')[0]?.replace(/[^a-z0-9]/gi, ' ') || null
+        : null;
+
+    return {
+      success: true,
+      userId: user.id,
+      token,
+      fullName: (user as any).name ?? fallbackName ?? null,
+    };
   } catch (error: any) {
     console.error('Unexpected signIn error:', error);
     return { success: false, error: error.message || 'Unable to log in right now.' };
@@ -442,7 +453,7 @@ export async function getUserProfile(
   try {
     const { data, error } = await supabase
       .from('users')
-      .select('id, name')
+      .select('id, name, email')
       .eq('id', userId)
       .single();
 
@@ -454,7 +465,19 @@ export async function getUserProfile(
       throw error;
     }
 
-    return data || null;
+    if (!data) {
+      return null;
+    }
+
+    const fallbackName =
+      typeof data.email === 'string'
+        ? data.email.split('@')[0]?.replace(/[^a-z0-9]/gi, ' ') || null
+        : null;
+
+    return {
+      id: data.id,
+      name: data.name ?? fallbackName ?? null,
+    };
   } catch (error) {
     console.error('Failed to fetch user profile:', error);
     throw error;
