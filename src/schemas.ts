@@ -21,6 +21,7 @@ export const MemoryJSONSchema = z.object({
   story_3_sentences: z.string().describe('The memory told in 3 simple sentences'),
   tags: z.array(z.string()).describe('Categories like travel, family, work'),
   quote: z.string().optional().describe('A memorable quote from the story'),
+  image_url: z.string().optional().describe('AI generated illustration for the memory'),
 });
 
 export type MemoryJSON = z.infer<typeof MemoryJSONSchema>;

@@ -1,8 +1,18 @@
-const { useState, useEffect, useRef } = React;
-const { MemorySparkIcon, SaveIcon } = window.AmilyIcons;
+const { useState, useEffect, useRef, useCallback } = React;
+const { MemorySparkIcon, SaveIcon, MicIcon } = window.AmilyIcons;
 const { createPortal } = ReactDOM;
 
-function MemoriesTab() {
+const MEMORY_IMAGE_PLACEHOLDERS = [
+    'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=900&q=80',
+    'https://images.unsplash.com/photo-1482192505345-5655af888cc4?auto=format&fit=crop&w=900&q=80',
+    'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=900&q=80',
+];
+
+const getMemoryPlaceholderImage = () => {
+    return MEMORY_IMAGE_PLACEHOLDERS[Math.floor(Math.random() * MEMORY_IMAGE_PLACEHOLDERS.length)];
+};
+
+function MemoriesTab({ userId = 'anonymous', authToken = null }) {
     const [input, setInput] = useState('');
     const [recording, setRecording] = useState(false);
     const [supportsSTT, setSupportsSTT] = useState(true);
@@ -46,16 +56,49 @@ function MemoriesTab() {
         return candidate || 'A Special Memory';
     };
 
-    const [memories, setMemories] = useState([
-        {
-            title: 'The old oak tree',
-            era: 'Childhood - 1950s',
-            story: 'My brother and I climbed the oak tree near the river every Sunday. We counted clouds and felt brave.',
-        },
-    ]);
+    const [memories, setMemories] = useState([]);
+    const [isLoadingMemories, setIsLoadingMemories] = useState(false);
+    const [memoryError, setMemoryError] = useState(null);
 
     const [modalOpen, setModalOpen] = useState(false);
     const [selectedMemory, setSelectedMemory] = useState(null);
+
+    const loadMemories = useCallback(async () => {
+        if (!userId) return;
+        setIsLoadingMemories(true);
+        setMemoryError(null);
+        try {
+            const res = await fetch(`/api/memory/${encodeURIComponent(userId)}?limit=50`, {
+                headers: {
+                    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+                },
+            });
+            const data = await res.json().catch(() => null);
+            if (!res.ok || !data || !data.success) {
+                throw new Error(data?.error || 'Could not load memories.');
+            }
+            const fetchedMemories = Array.isArray(data.data)
+                ? data.data.map((entry) => ({
+                      title: entry.title || generateTitleFromStory(entry.story || entry.story_3_sentences || ''),
+                      era: entry.era || new Date(entry.timestamp || Date.now()).toLocaleDateString(),
+                      story: entry.story || entry.story_3_sentences || '',
+                      imageUrl: entry.imageUrl || entry.image_url || getMemoryPlaceholderImage(),
+                      timestamp: entry.timestamp,
+                      tags: entry.tags || [],
+                  }))
+                : [];
+            setMemories(fetchedMemories);
+        } catch (error) {
+            console.warn('Load memories failed:', error);
+            setMemoryError(error?.message || 'Could not load memories.');
+        } finally {
+            setIsLoadingMemories(false);
+        }
+    }, [userId, authToken]);
+
+    useEffect(() => {
+        loadMemories();
+    }, [loadMemories]);
 
     const saveMemory = async () => {
         if (!input.trim()) {
@@ -66,15 +109,23 @@ function MemoriesTab() {
         try {
             const res = await fetch('/api/memory', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: 'local-user', storyInput: input.trim() }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+                },
+                body: JSON.stringify({ userId: userId || 'anonymous', storyInput: input.trim() }),
             });
 
             const data = await res.json().catch(() => null);
             if (!res.ok || !data || !data.success) {
                 const title = generateTitleFromStory(input.trim());
                 setMemories((prev) => [
-                    { title, era: new Date().toLocaleDateString(), story: input.trim() },
+                    {
+                        title,
+                        era: new Date().toLocaleDateString(),
+                        story: input.trim(),
+                        imageUrl: getMemoryPlaceholderImage(),
+                    },
                     ...prev,
                 ]);
                 setInput('');
@@ -83,13 +134,15 @@ function MemoriesTab() {
             }
 
             const mem = data.data || { title: generateTitleFromStory(input.trim()), story: input.trim() };
+            const resolvedStory = mem.story_3_sentences ? mem.story_3_sentences : input.trim();
+            const resolvedImage = mem.imageUrl || mem.image_url || getMemoryPlaceholderImage();
 
             setMemories((prev) => [
                 {
                     title: mem.title || generateTitleFromStory(input.trim()),
                     era: mem.era || new Date().toLocaleDateString(),
-                    story: mem.story_3_sentences ? mem.story_3_sentences : input.trim(),
-                    imageUrl: mem.imageUrl || null,
+                    story: resolvedStory,
+                    imageUrl: resolvedImage,
                 },
                 ...prev,
             ]);
@@ -100,7 +153,12 @@ function MemoriesTab() {
             console.warn('Save memory failed:', err);
             const title = generateTitleFromStory(input.trim());
             setMemories((prev) => [
-                { title, era: new Date().toLocaleDateString(), story: input.trim() },
+                {
+                    title,
+                    era: new Date().toLocaleDateString(),
+                    story: input.trim(),
+                    imageUrl: getMemoryPlaceholderImage(),
+                },
                 ...prev,
             ]);
             setInput('');
@@ -334,6 +392,16 @@ function MemoriesTab() {
                                 </button>
                             </div>
 
+                            {selectedMemory.imageUrl && (
+                                <div className="w-full rounded-2xl overflow-hidden border border-[#f4d3b4] shadow-sm mb-6">
+                                    <img
+                                        src={selectedMemory.imageUrl}
+                                        alt={`Illustration of ${selectedMemory.title}`}
+                                        className="w-full max-h-[320px] object-cover"
+                                    />
+                                </div>
+                            )}
+
                             {/* Action buttons */}
                             <div className="flex flex-wrap gap-2 mb-6">
                                 <button
@@ -414,11 +482,12 @@ function MemoriesTab() {
                                 <button
                                     type="button"
                                     onClick={() => (recording ? stopRecognition() : startRecognition())}
-                                    className={`px-6 py-3 rounded-2xl font-semibold border-2 border-[#db7758] text-[#db7758] ${
-                                        recording ? 'opacity-90' : ''
+                                    className={`inline-flex items-center gap-2 px-6 py-3 rounded-2xl font-semibold border-2 border-[#db7758] text-[#db7758] ${
+                                        recording ? 'opacity-90 bg-[#fff1eb]' : ''
                                     }`}
                                 >
-                                    {recording ? 'Listening...' : 'Use microphone'}
+                                    <MicIcon className={`text-xl ${recording ? 'animate-pulse' : ''}`} />
+                                    <span>{recording ? 'Listening…' : 'Use mic'}</span>
                                 </button>
                             </div>
 
@@ -434,6 +503,24 @@ function MemoriesTab() {
                                 <h3 className="text-xl font-bold">Recent memories</h3>
                             </div>
 
+                            {memoryError && (
+                                <div className="rounded-2xl bg-[#ffe3dd] border border-[#f1bfb2] px-4 py-3 text-sm text-[#a6523b]">
+                                    {memoryError}
+                                </div>
+                            )}
+
+                            {isLoadingMemories && (
+                                <div className="rounded-2xl bg-[#fff6ea] border border-dashed border-[#f4d3b4] px-4 py-3 text-sm text-[#6b6b6b]">
+                                    Loading your saved stories…
+                                </div>
+                            )}
+
+                            {!isLoadingMemories && memories.length === 0 && !memoryError && (
+                                <div className="rounded-2xl bg-[#fffaf0] border border-dashed border-[#f4d3b4] px-4 py-5 text-sm text-[#6b6b6b]">
+                                    No memories saved yet. Share a story on the left and it will appear here for your care circle.
+                                </div>
+                            )}
+
                             {memories.map((memory, index) => (
                                 <div
                                     key={`${memory.title}-${index}`}
@@ -443,8 +530,18 @@ function MemoriesTab() {
                                     onKeyDown={(e) => {
                                         if (e.key === 'Enter' || e.key === ' ') openMemory(memory);
                                     }}
-                                    className="rounded-2xl border border-[#f4d3b4] bg-[#fffaf0] p-4 space-y-2 cursor-pointer"
+                                    className="rounded-2xl border border-[#f4d3b4] bg-[#fffaf0] p-4 space-y-3 cursor-pointer hover:shadow-md transition-shadow"
                                 >
+                                    {memory.imageUrl && (
+                                        <div className="rounded-2xl overflow-hidden border border-[#f6dcca] bg-white">
+                                            <img
+                                                src={memory.imageUrl}
+                                                alt={`Memory illustration for ${memory.title}`}
+                                                className="w-full h-40 object-cover"
+                                                loading="lazy"
+                                            />
+                                        </div>
+                                    )}
                                     <h4 className="text-lg font-semibold">{memory.title}</h4>
                                     <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#db7758]">{memory.era}</p>
                                     <p className="text-sm text-[#6b6b6b] leading-relaxed truncate">{memory.story}</p>
