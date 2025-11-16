@@ -204,8 +204,10 @@ function WellnessTab({ userId = 'demo-user', authToken = null, userName = 'Compa
     };
 
     const handleManualHydration = () => {
-        wellnessStore?.setUser?.(userId || 'demo-user');
+        const activeUser = userId || 'demo-user';
+        wellnessStore?.setUser?.(activeUser);
         wellnessStore?.adjustHydration?.(1);
+        setHydration(getHydrationSnapshot());
         logHydrationToServer(1);
     };
 

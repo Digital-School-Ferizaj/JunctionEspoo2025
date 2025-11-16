@@ -581,7 +581,17 @@ export async function getChatHistory(userId: string, limit: number = 50): Promis
 export async function getMemories(
   userId: string,
   limit: number = 50
-): Promise<Array<MemoryJSON & { imageUrl?: string | null; story?: string; timestamp?: string }>> {
+): Promise<
+  Array<
+    MemoryJSON & {
+      imageUrl?: string | null;
+      story?: string;
+      storyFull?: string | null;
+      story_full?: string | null;
+      timestamp?: string;
+    }
+  >
+> {
   if (!supabase) {
     console.warn('⚠️ Supabase not initialized – returning empty memories list');
     return [];
@@ -605,10 +615,15 @@ export async function getMemories(
     }
 
     return (data ?? []).map((row: any) => {
-      const memory = (row.memory || {}) as MemoryJSON & { image_url?: string | null; story?: string };
+      const memory = (row.memory || {}) as MemoryJSON & {
+        image_url?: string | null;
+        story?: string;
+        story_full?: string | null;
+      };
       return {
         ...memory,
         story: memory.story ?? memory.story_3_sentences,
+        storyFull: memory.story_full ?? memory.story ?? memory.story_3_sentences ?? null,
         imageUrl: memory.image_url ?? (memory as any).imageUrl ?? null,
         timestamp: row.timestamp,
       };

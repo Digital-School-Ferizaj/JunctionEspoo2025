@@ -1,8 +1,8 @@
 const { useState, useEffect, useRef } = React;
 const { HeartIcon, SendIcon, ChatBubbleIcon, MicIcon } = window.AmilyIcons;
 
-const HISTORY_STORAGE_KEY = 'amily-chat-history-v1';
-const HIGHLIGHTS_STORAGE_KEY = 'amily-chat-highlights-v1';
+const getHistoryStorageKey = (userId) => `amily-chat-history-v1-${userId || 'anon'}`;
+const getHighlightStorageKey = (userId) => `amily-chat-highlights-v1-${userId || 'anon'}`;
 
 const HYDRATION_KEYWORDS = ['drink', 'drank', 'water', 'hydrate', 'hydrated', 'hydration', 'thirsty', 'tea', 'juice'];
 const REMINDER_KEYWORDS = ['remind', 'reminder', 'remember to', 'should drink', 'need to drink'];
@@ -188,50 +188,65 @@ function ChatTab({ userId = 'voice-user', authToken = null }) {
     useEffect(() => {
         if (typeof window === 'undefined') return;
         try {
-            const storedMessages = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+            const historyKey = getHistoryStorageKey(userId);
+            const storedMessages = window.localStorage.getItem(historyKey);
             if (storedMessages) {
                 const parsedMessages = JSON.parse(storedMessages);
                 if (Array.isArray(parsedMessages) && parsedMessages.length) {
                     setMessages(parsedMessages);
+                } else {
+                    setMessages([]);
                 }
+            } else {
+                setMessages([]);
             }
-            const storedHighlights = window.localStorage.getItem(HIGHLIGHTS_STORAGE_KEY);
+
+            const highlightKey = getHighlightStorageKey(userId);
+            const storedHighlights = window.localStorage.getItem(highlightKey);
             if (storedHighlights) {
                 const parsedHighlights = JSON.parse(storedHighlights);
                 if (Array.isArray(parsedHighlights) && parsedHighlights.length) {
                     setHighlights(parsedHighlights);
+                } else {
+                    setHighlights([]);
                 }
+            } else {
+                setHighlights([]);
             }
         } catch (storageError) {
             console.warn('Unable to hydrate chat history', storageError);
+            setMessages([]);
+            setHighlights([]);
         }
-    }, []);
+    }, [userId]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
         try {
+            const historyKey = getHistoryStorageKey(userId);
             if (messages.length) {
-                window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(messages.slice(-200)));
+                window.localStorage.setItem(historyKey, JSON.stringify(messages.slice(-200)));
             } else {
-                window.localStorage.removeItem(HISTORY_STORAGE_KEY);
+                window.localStorage.removeItem(historyKey);
             }
         } catch (persistError) {
             console.warn('Unable to persist chat history', persistError);
         }
-    }, [messages]);
+    }, [messages, userId]);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
         try {
+            const highlightKey = getHighlightStorageKey(userId);
             if (highlights.length) {
-                window.localStorage.setItem(HIGHLIGHTS_STORAGE_KEY, JSON.stringify(highlights.slice(0, 20)));
+                window.localStorage.setItem(highlightKey, JSON.stringify(highlights.slice(0, 20)));
             } else {
-                window.localStorage.removeItem(HIGHLIGHTS_STORAGE_KEY);
+                window.localStorage.removeItem(highlightKey);
             }
         } catch (persistError) {
             console.warn('Unable to persist chat highlights', persistError);
         }
-    }, [highlights]);
+    }, [highlights, userId]);
 
     const addHighlight = (userText, aiText) => {
         if (!userText || !aiText) return;
@@ -450,16 +465,6 @@ function ChatTab({ userId = 'voice-user', authToken = null }) {
                 `}
             </style>
             <div className="max-w-5xl mx-auto space-y-10">
-                <div className="text-center space-y-3">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#fde9dc] text-[#db7758] text-xs font-semibold uppercase tracking-[0.3em]">
-                        <ChatBubbleIcon />
-                        Amily chat
-                    </div>
-                    <h2 className="text-3xl font-bold">A centered microphone built for calm check-ins</h2>
-                    <p className="text-[#6b6b6b] max-w-3xl mx-auto">
-                        We kept the same warm palette but reshaped the experience around a single glowing control, making it easy for elders to press, speak, and feel heard.
-                    </p>
-                </div>
 
                 <div className="relative overflow-hidden rounded-[48px] border border-[#f4d3b4] bg-white shadow-xl px-6 py-14">
                     <div className="absolute inset-0 bg-gradient-to-br from-[#fff5eb] via-[#ffe9dc] to-[#ffe1d0] opacity-70" aria-hidden="true" />
@@ -467,7 +472,7 @@ function ChatTab({ userId = 'voice-user', authToken = null }) {
                     <div className="relative flex flex-col items-center gap-10 text-center">
                         <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/60 text-[#db7758] text-xs font-semibold uppercase tracking-[0.3em] border border-white/60 shadow-sm">
                             <ChatBubbleIcon />
-                            Voice first
+                            AMILY CHAT
                         </div>
                         <h3 className="text-2xl font-semibold">Hold the glowing mic to check in with Amily</h3>
                         <div className="relative flex items-center justify-center w-full">

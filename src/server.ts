@@ -556,9 +556,11 @@ app.post('/api/memory', async (req: Request, res: Response) => {
       console.warn('Memory image generation error:', imageError);
     }
 
-    const memoryRecord: MemoryJSON & { image_url?: string | null } = {
+    const trimmedStory = storyInput.trim();
+    const memoryRecord: MemoryJSON & { image_url?: string | null; story_full?: string } = {
       ...validatedMemory,
       image_url: imageUrl ?? undefined,
+      story_full: trimmedStory || undefined,
     };
     
     // Generate encouraging TTS response
@@ -577,7 +579,11 @@ app.post('/api/memory', async (req: Request, res: Response) => {
     
     res.json({
       success: true,
-      data: { ...memoryRecord, imageUrl: imageUrl ?? null },
+      data: {
+        ...memoryRecord,
+        imageUrl: imageUrl ?? null,
+        storyFull: trimmedStory || null,
+      },
       ttsText,
       audioUrl,
       timestamp: new Date().toISOString(),
@@ -613,9 +619,15 @@ app.get('/api/memory/:userId', async (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      data: memories.map((memory) => ({
+      data: memories.map((memory: any) => ({
         ...memory,
         story: memory.story ?? memory.story_3_sentences,
+        storyFull:
+          memory.storyFull ??
+          memory.story_full ??
+          memory.story ??
+          memory.story_3_sentences ??
+          null,
         imageUrl: memory.imageUrl ?? memory.image_url ?? null,
       })),
     });
@@ -1086,6 +1098,39 @@ app.post('/api/wellness/log', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: 'Could not log activity',
+    });
+  }
+});
+
+/**
+ * POST /api/tts
+ * Generate TTS audio for arbitrary text (used by memories playback)
+ */
+app.post('/api/tts', async (req: Request, res: Response) => {
+  try {
+    const { text } = req.body as { text?: string };
+
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Text is required.',
+      });
+    }
+
+    const trimmed = text.trim();
+    const formatted = formatForTTS(trimmed, { includeReassurance: false });
+    const audioUrl = await generateTTS(formatted);
+
+    res.json({
+      success: true,
+      audioUrl,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('TTS generation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Could not generate audio.',
     });
   }
 });

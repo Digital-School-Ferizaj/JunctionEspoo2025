@@ -82,6 +82,7 @@ function MemoriesTab({ userId = 'anonymous', authToken = null }) {
                       title: entry.title || generateTitleFromStory(entry.story || entry.story_3_sentences || ''),
                       era: entry.era || new Date(entry.timestamp || Date.now()).toLocaleDateString(),
                       story: entry.story || entry.story_3_sentences || '',
+                      storyFull: entry.storyFull || entry.story_full || entry.story || entry.story_3_sentences || '',
                       imageUrl: entry.imageUrl || entry.image_url || getMemoryPlaceholderImage(),
                       timestamp: entry.timestamp,
                       tags: entry.tags || [],
@@ -124,6 +125,7 @@ function MemoriesTab({ userId = 'anonymous', authToken = null }) {
                         title,
                         era: new Date().toLocaleDateString(),
                         story: input.trim(),
+                        storyFull: input.trim(),
                         imageUrl: getMemoryPlaceholderImage(),
                     },
                     ...prev,
@@ -136,12 +138,14 @@ function MemoriesTab({ userId = 'anonymous', authToken = null }) {
             const mem = data.data || { title: generateTitleFromStory(input.trim()), story: input.trim() };
             const resolvedStory = mem.story_3_sentences ? mem.story_3_sentences : input.trim();
             const resolvedImage = mem.imageUrl || mem.image_url || getMemoryPlaceholderImage();
+            const resolvedStoryFull = mem.storyFull || mem.story_full || input.trim();
 
             setMemories((prev) => [
                 {
                     title: mem.title || generateTitleFromStory(input.trim()),
                     era: mem.era || new Date().toLocaleDateString(),
                     story: resolvedStory,
+                    storyFull: resolvedStoryFull,
                     imageUrl: resolvedImage,
                 },
                 ...prev,
@@ -157,6 +161,7 @@ function MemoriesTab({ userId = 'anonymous', authToken = null }) {
                     title,
                     era: new Date().toLocaleDateString(),
                     story: input.trim(),
+                    storyFull: input.trim(),
                     imageUrl: getMemoryPlaceholderImage(),
                 },
                 ...prev,
@@ -242,46 +247,33 @@ function MemoriesTab({ userId = 'anonymous', authToken = null }) {
         if (!selectedMemory) return;
 
         try {
-            // Directly request TTS for the story text only
             const ttsRes = await fetch('/api/tts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text: selectedMemory.story }),
-            }).catch(() => null);
-
-            if (ttsRes && ttsRes.ok) {
-                const data = await ttsRes.json();
-                if (data.audioUrl) {
-                    const audio = new Audio(data.audioUrl);
-                    audio.play().catch((err) => console.warn('Audio playback failed:', err));
-                }
-                return;
-            }
-
-            // Fallback: use the services generateTTS directly via a simple fetch
-            // This won't work without a server endpoint, so show a simpler approach:
-            // Use the memory endpoint but ensure it only returns TTS of the story
-            const res = await fetch('/api/memory', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    userId: 'memory-reader',
-                    storyInput: selectedMemory.story,
+                    text: selectedMemory.storyFull || selectedMemory.story,
                 }),
             });
 
-            const data = await res.json();
-            // The response includes audioUrl for the TTS of the story
-            if (data.audioUrl) {
-                const audio = new Audio(data.audioUrl);
-                audio.play().catch((err) => console.warn('Audio playback failed:', err));
+            if (!ttsRes.ok) {
+                throw new Error('TTS request failed');
             }
+
+            const data = await ttsRes.json();
+            if (!data.audioUrl) {
+                throw new Error('No audio returned');
+            }
+
+            const audio = new Audio(data.audioUrl);
+            audio.play().catch((err) => {
+                console.warn('Audio playback failed:', err);
+                alert('Audio playback failed. Please try again.');
+            });
         } catch (err) {
             console.warn('Failed to generate audio for memory:', err);
             alert('Could not read memory aloud.');
         }
     };
-
     const shareMemory = () => {
         if (!selectedMemory) return;
 
