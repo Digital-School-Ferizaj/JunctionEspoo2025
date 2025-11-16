@@ -76,6 +76,140 @@ export const revokeAuthToken = (token: string) => {
   activeTokens.delete(token);
 };
 
+export type BuddyProfile = {
+  id: string;
+  name: string;
+  distance: string;
+  availability: string;
+  interests: string[];
+  note?: string | null;
+};
+
+const FALLBACK_DISTANCES = ['Same building', '1 km away', '2 km away', '3 km away', 'Nearby park'];
+const FALLBACK_AVAILABILITY = ['Most afternoons', 'Every morning', 'Evenings & weekends', 'Flexible schedule'];
+const FALLBACK_INTERESTS = [
+  'Tea tasting',
+  'Radio stories',
+  'Soft walks',
+  'Crosswords',
+  'Gardening tips',
+  'Local news',
+  'Choir songs',
+  'Knitting',
+  'Coffee chats',
+];
+
+const fallbackBuddyProfiles: BuddyProfile[] = [
+  {
+    id: 'buddy-leena',
+    name: 'Leena H.',
+    distance: '1 km away',
+    availability: 'Most afternoons',
+    interests: ['Knitting', 'Choir songs', 'Coffee walks'],
+    note: 'Prefers slow afternoon walks.',
+  },
+  {
+    id: 'buddy-mika',
+    name: 'Mika P.',
+    distance: '3 km away',
+    availability: 'Evenings and weekends',
+    interests: ['Fishing stories', 'Jazz radio', 'Gardening tips'],
+    note: 'Enjoys sharing local jazz radio finds.',
+  },
+  {
+    id: 'buddy-aada',
+    name: 'Aada L.',
+    distance: 'Same building',
+    availability: 'Every morning',
+    interests: ['Crosswords', 'Old films', 'Tea tasting'],
+    note: 'Hosts tea tasting on Thursdays.',
+  },
+];
+
+const deriveSeed = (input: string | null | undefined, fallbackSeed: number) => {
+  if (!input) return fallbackSeed;
+  return input.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+};
+
+const pickFromList = <T,>(seed: number, list: T[], offset = 0): T => {
+  const index = Math.abs(seed + offset) % list.length;
+  return list[index];
+};
+
+const buildInterestTags = (seed: number) => {
+  const first = pickFromList(seed, FALLBACK_INTERESTS, 1);
+  const second = pickFromList(seed, FALLBACK_INTERESTS, 4);
+  if (first === second) {
+    const third = pickFromList(seed, FALLBACK_INTERESTS, 7);
+    return Array.from(new Set([first, third]));
+  }
+  return [first, second];
+};
+
+const mapUserToBuddyProfile = (record: Record<string, any> = {}, index: number): BuddyProfile => {
+  const fallbackName =
+    typeof record?.email === 'string'
+      ? record.email.split('@')[0]?.replace(/[^a-z0-9]/gi, ' ') || 'Friendly neighbor'
+      : 'Friendly neighbor';
+  const name = (record?.name || '').trim() || fallbackName;
+  const seed = deriveSeed(record?.id || record?.email || name, index * 13 + 7);
+
+  return {
+    id: record?.id || `buddy-${index}`,
+    name,
+    distance: record?.distance || pickFromList(seed, FALLBACK_DISTANCES),
+    availability: record?.availability || pickFromList(seed, FALLBACK_AVAILABILITY, 3),
+    interests:
+      Array.isArray(record?.interests) && record.interests.length
+        ? record.interests
+        : buildInterestTags(seed),
+    note: record?.note || (record?.email ? `Reachable via ${record.email}` : null),
+  };
+};
+
+export async function getBuddyProfiles(limit: number = 8, excludeUserId?: string | null): Promise<BuddyProfile[]> {
+  const fallback = fallbackBuddyProfiles
+    .filter((profile) => !excludeUserId || profile.id !== excludeUserId)
+    .slice(0, limit);
+
+  if (!supabase) {
+    return fallback;
+  }
+
+  try {
+    let query = supabase
+      .from('users')
+      .select('id, name, email, created_at')
+      .order('created_at', { ascending: true })
+      .limit(limit + (excludeUserId ? 2 : 0));
+
+    if (excludeUserId) {
+      query = query.neq('id', excludeUserId);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      if (error.code === 'PGRST205') {
+        console.warn('⚠️ Users table not available – falling back to demo buddies.');
+        return fallback;
+      }
+      console.error('Failed to load buddy profiles:', error);
+      return fallback;
+    }
+
+    if (!Array.isArray(data) || data.length === 0) {
+      return fallback;
+    }
+
+    const mapped = data.map((record, index) => mapUserToBuddyProfile(record, index));
+    return mapped.filter((profile) => Boolean(profile?.id)).slice(0, limit);
+  } catch (error) {
+    console.error('Unexpected buddy profile fetch error:', error);
+    return fallback;
+  }
+}
+
 /**
  * ElevenLabs TTS Integration
  * (single source of "generation" now – no demo audio)
@@ -125,7 +259,11 @@ export async function generateTTS(text: string): Promise<string> {
 /**
  * Supabase Database Integration
  */
-export async function saveToSupabase(table: string, data: any): Promise<boolean> {
+export async function saveToSupabase(
+  table: string,
+  data: any,
+  options: { silentMissingTable?: boolean } = {}
+): Promise<boolean> {
   if (!supabase) {
     console.warn(`⚠️ Supabase not initialized – cannot save to "${table}"`);
     return false;
@@ -136,7 +274,9 @@ export async function saveToSupabase(table: string, data: any): Promise<boolean>
     if (error) {
       // Handle missing table gracefully (PGRST205 = table not found)
       if (error.code === 'PGRST205') {
-        console.warn(`⚠️ Table "${table}" does not exist in database. Skipping save.`);
+        if (!options.silentMissingTable) {
+          console.warn(`⚠️ Table "${table}" does not exist in database. Skipping save.`);
+        }
         return false;
       }
       console.error(`Supabase insert error on table "${table}":`, error);
