@@ -42,10 +42,18 @@ const generateSalt = () => crypto.randomBytes(16).toString('hex');
 
 const generateUserId = () => crypto.randomUUID();
 
-const deriveDemoUserId = (email: string) =>
-  `demo-${crypto.createHash('sha1').update(normalizeEmail(email)).digest('hex')}`;
+const encodePasscode = (password: string) => {
+  const salt = generateSalt();
+  const hash = hashPassword(password, salt);
+  return `${salt}:${hash}`;
+};
 
-const isUndefinedColumnError = (error: any) => error?.code === '42703';
+const verifyPasscode = (stored: string | null | undefined, inputPassword: string) => {
+  if (!stored) return false;
+  const [salt, hash] = stored.split(':');
+  if (!salt || !hash) return false;
+  return hashPassword(inputPassword, salt) === hash;
+};
 
 export const issueAuthToken = (userId: string): string => {
   const token = crypto.randomBytes(32).toString('hex');
@@ -148,12 +156,6 @@ export async function saveToSupabase(table: string, data: any): Promise<boolean>
  */
 type AuthResult = { success: boolean; userId?: string; token?: string; error?: string };
 
-const issueDemoAuthResult = (email: string): AuthResult => {
-  const userId = deriveDemoUserId(email);
-  const token = issueAuthToken(userId);
-  return { success: true, userId, token };
-};
-
 export async function signUpUser(params: {
   email: string;
   password: string;
@@ -161,8 +163,7 @@ export async function signUpUser(params: {
   supportedPerson?: string;
 }): Promise<AuthResult> {
   if (!supabase) {
-    console.warn('Supabase client not initialized – using demo signup fallback.');
-    return issueDemoAuthResult(params.email);
+    throw new Error('Supabase client not initialized – cannot sign up user.');
   }
 
   try {
@@ -177,25 +178,20 @@ export async function signUpUser(params: {
       return { success: false, error: 'Account already exists for this email.' };
     }
 
-    const salt = generateSalt();
-    const passwordHash = hashPassword(params.password, salt);
+    const passcodeHash = encodePasscode(params.password);
     const userId = generateUserId();
 
-    const { error: insertError } = await supabase.from('users').insert({
+    const insertPayload: Record<string, any> = {
       id: userId,
       email,
-      password_hash: passwordHash,
-      password_salt: salt,
-      full_name: params.fullName ?? null,
-      supported_person: params.supportedPerson ?? null,
+      passcode_hash: passcodeHash,
+      name: params.fullName ?? null,
       created_at: new Date().toISOString(),
-    });
+    };
+
+    const { error: insertError } = await supabase.from('users').insert(insertPayload);
 
     if (insertError) {
-      if (isUndefinedColumnError(insertError)) {
-        console.warn('Supabase users table missing credential columns – using demo signup fallback.');
-        return issueDemoAuthResult(params.email);
-      }
       console.error('Supabase users insert error:', insertError);
       return { success: false, error: insertError.message };
     }
@@ -213,7 +209,7 @@ export async function signUpUser(params: {
     return { success: true, userId, token };
   } catch (error: any) {
     console.error('Unexpected signUp error:', error);
-    return issueDemoAuthResult(params.email);
+    return { success: false, error: error.message || 'Unable to sign up right now.' };
   }
 }
 
@@ -225,44 +221,35 @@ export async function signInUser(params: {
   password: string;
 }): Promise<AuthResult> {
   if (!supabase) {
-    console.warn('Supabase client not initialized – using demo login fallback.');
-    return issueDemoAuthResult(params.email);
+    throw new Error('Supabase client not initialized – cannot sign in user.');
   }
 
   try {
     const email = normalizeEmail(params.email);
     const { data: user, error } = await supabase
       .from('users')
-      .select('id, password_hash, password_salt')
+      .select('id, passcode_hash')
       .eq('email', email)
       .maybeSingle();
-
-    if (isUndefinedColumnError(error)) {
-      console.warn('Supabase users table missing credential columns – using demo login fallback.');
-      return issueDemoAuthResult(params.email);
-    }
 
     if (error && error.code !== 'PGRST116') {
       console.error('Supabase users select error:', error);
       return { success: false, error: error.message };
     }
 
-    if (!user?.id || !user.password_hash || !user.password_salt) {
-      console.warn('Supabase user not found or missing credentials – using demo login fallback.');
-      return issueDemoAuthResult(params.email);
+    if (!user?.id || !user.passcode_hash) {
+      return { success: false, error: 'Invalid email or password.' };
     }
 
-    const calculatedHash = hashPassword(params.password, user.password_salt);
-    if (calculatedHash !== user.password_hash) {
-      console.warn('Supabase password mismatch – using demo login fallback.');
-      return issueDemoAuthResult(params.email);
+    if (!verifyPasscode(user.passcode_hash, params.password)) {
+      return { success: false, error: 'Invalid email or password.' };
     }
 
     const token = issueAuthToken(user.id);
     return { success: true, userId: user.id, token };
   } catch (error: any) {
     console.error('Unexpected signIn error:', error);
-    return issueDemoAuthResult(params.email);
+    return { success: false, error: error.message || 'Unable to log in right now.' };
   }
 }
 
