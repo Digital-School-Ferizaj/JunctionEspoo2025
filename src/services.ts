@@ -4,6 +4,7 @@
  * Handles all external API calls - requires real API keys and database
  */
 
+import crypto from 'crypto';
 import { config } from './config';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { detectEmotion, generateEmpatheticResponse } from './persona';
@@ -13,6 +14,10 @@ export const ELEVENLABS_TTS_MODEL = 'eleven_monolingual_v1';
 
 // Supabase client (only initialized in prod mode when keys are present)
 let supabase: SupabaseClient | null = null;
+
+const TOKEN_TTL_MS = 1000 * 60 * 60 * 24; // 24 hours
+type TokenRecord = { userId: string; expiresAt: number };
+const activeTokens = new Map<string, TokenRecord>();
 
 if (config.keys.supabaseUrl && config.keys.supabaseKey) {
   try {
@@ -26,6 +31,37 @@ if (config.keys.supabaseUrl && config.keys.supabaseKey) {
 } else {
   console.warn('Supabase URL/key missing – database features will not be available.');
 }
+
+const normalizeEmail = (email: string) => email.trim().toLowerCase();
+
+const hashPassword = (password: string, salt: string) => {
+  return crypto.createHash('sha256').update(`${salt}:${password}`).digest('hex');
+};
+
+const generateSalt = () => crypto.randomBytes(16).toString('hex');
+
+const generateUserId = () => crypto.randomUUID();
+
+export const issueAuthToken = (userId: string): string => {
+  const token = crypto.randomBytes(32).toString('hex');
+  activeTokens.set(token, { userId, expiresAt: Date.now() + TOKEN_TTL_MS });
+  return token;
+};
+
+export const resolveUserIdFromToken = (token?: string | null): string | null => {
+  if (!token) return null;
+  const record = activeTokens.get(token);
+  if (!record) return null;
+  if (record.expiresAt < Date.now()) {
+    activeTokens.delete(token);
+    return null;
+  }
+  return record.userId;
+};
+
+export const revokeAuthToken = (token: string) => {
+  activeTokens.delete(token);
+};
 
 /**
  * ElevenLabs TTS Integration
@@ -105,36 +141,47 @@ export async function saveToSupabase(table: string, data: any): Promise<boolean>
 /**
  * Supabase Auth: Sign up a new user with email/password
  */
+type AuthResult = { success: boolean; userId?: string; token?: string; error?: string };
+
 export async function signUpUser(params: {
   email: string;
   password: string;
   fullName?: string;
   supportedPerson?: string;
-}): Promise<{ success: boolean; userId?: string; error?: string }> {
+}): Promise<AuthResult> {
   if (!supabase) {
     throw new Error('Supabase client not initialized – cannot sign up user.');
   }
 
   try {
-    const { data, error } = await supabase.auth.signUp({
-      email: params.email,
-      password: params.password,
-      options: {
-        data: {
-          full_name: params.fullName ?? null,
-          supported_person: params.supportedPerson ?? null,
-        },
-      },
-    });
+    const email = normalizeEmail(params.email);
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .maybeSingle();
 
-    if (error) {
-      console.error('Supabase signUp error:', error);
-      return { success: false, error: error.message };
+    if (existing?.id) {
+      return { success: false, error: 'Account already exists for this email.' };
     }
 
-    const userId = data.user?.id;
-    if (!userId) {
-      return { success: false, error: 'User created but no user ID returned.' };
+    const salt = generateSalt();
+    const passwordHash = hashPassword(params.password, salt);
+    const userId = generateUserId();
+
+    const { error: insertError } = await supabase.from('users').insert({
+      id: userId,
+      email,
+      password_hash: passwordHash,
+      password_salt: salt,
+      full_name: params.fullName ?? null,
+      supported_person: params.supportedPerson ?? null,
+      created_at: new Date().toISOString(),
+    });
+
+    if (insertError) {
+      console.error('Supabase users insert error:', insertError);
+      return { success: false, error: insertError.message };
     }
 
     // Create a preferences row for this user
@@ -146,7 +193,8 @@ export async function signUpUser(params: {
       routine_notes: null,
     });
 
-    return { success: true, userId };
+    const token = issueAuthToken(userId);
+    return { success: true, userId, token };
   } catch (error: any) {
     console.error('Unexpected signUp error:', error);
     return { success: false, error: error.message || 'Unable to sign up right now.' };
@@ -159,28 +207,35 @@ export async function signUpUser(params: {
 export async function signInUser(params: {
   email: string;
   password: string;
-}): Promise<{ success: boolean; userId?: string; error?: string }> {
+}): Promise<AuthResult> {
   if (!supabase) {
     throw new Error('Supabase client not initialized – cannot sign in user.');
   }
 
   try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: params.email,
-      password: params.password,
-    });
+    const email = normalizeEmail(params.email);
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, password_hash, password_salt')
+      .eq('email', email)
+      .maybeSingle();
 
-    if (error) {
-      console.error('Supabase signIn error:', error);
+    if (error && error.code !== 'PGRST116') {
+      console.error('Supabase users select error:', error);
       return { success: false, error: error.message };
     }
 
-    const userId = data.user?.id;
-    if (!userId) {
-      return { success: false, error: 'Login successful but no user ID returned.' };
+    if (!user?.id || !user.password_hash || !user.password_salt) {
+      return { success: false, error: 'Invalid email or password.' };
     }
 
-    return { success: true, userId };
+    const calculatedHash = hashPassword(params.password, user.password_salt);
+    if (calculatedHash !== user.password_hash) {
+      return { success: false, error: 'Invalid email or password.' };
+    }
+
+    const token = issueAuthToken(user.id);
+    return { success: true, userId: user.id, token };
   } catch (error: any) {
     console.error('Unexpected signIn error:', error);
     return { success: false, error: error.message || 'Unable to log in right now.' };

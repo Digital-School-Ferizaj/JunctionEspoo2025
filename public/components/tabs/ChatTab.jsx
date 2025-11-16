@@ -1,7 +1,64 @@
 const { useState, useEffect, useRef } = React;
 const { HeartIcon, SendIcon, ChatBubbleIcon } = window.AmilyIcons;
 
-function ChatTab() {
+const HYDRATION_KEYWORDS = ['drink', 'drank', 'water', 'hydrate', 'hydrated', 'hydration', 'thirsty', 'tea', 'juice'];
+const REMINDER_KEYWORDS = ['remind', 'reminder', 'remember to', 'should drink', 'need to drink'];
+const NUMBER_WORD_MAP = {
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+};
+const QUANTITY_PATTERN = /(\d+(?:\.\d+)?)\s*(glass|glasses|cup|cups|bottle|bottles|drink|drinks|oz|ml|liter|litre|liters|litres)/;
+
+const normalizeText = (text = '') => text.toLowerCase().replace(/\s+/g, ' ').trim();
+
+const clampQuantity = (value) => Math.max(1, Math.min(4, Math.round(value || 1)));
+
+const extractQuantityFromText = (normalizedText) => {
+    const match = normalizedText.match(QUANTITY_PATTERN);
+    if (match) {
+        return clampQuantity(parseFloat(match[1]));
+    }
+    const numberWord = Object.keys(NUMBER_WORD_MAP).find((word) => normalizedText.includes(` ${word} `) || normalizedText.startsWith(`${word} `) || normalizedText.endsWith(` ${word}`) || normalizedText === word);
+    if (numberWord) {
+        return clampQuantity(NUMBER_WORD_MAP[numberWord]);
+    }
+    if (normalizedText.includes('couple')) {
+        return 2;
+    }
+    return 1;
+};
+
+const detectHydrationIntent = (text) => {
+    if (!text) return null;
+    const normalized = normalizeText(text);
+    if (!normalized) return null;
+
+    const mentionsHydration = HYDRATION_KEYWORDS.some((keyword) => normalized.includes(keyword));
+    if (!mentionsHydration) return null;
+
+    const isReminderOnly = REMINDER_KEYWORDS.some((keyword) => normalized.includes(keyword));
+    if (isReminderOnly && !normalized.includes('drank') && !normalized.includes('finished') && !normalized.includes('had ')) {
+        return null;
+    }
+
+    return { quantity: extractQuantityFromText(normalized) };
+};
+
+const logHydrationFromChat = (quantity = 1) => {
+    if (typeof window === 'undefined' || !quantity) return;
+    const wellnessStore = window.AmilyWellness;
+    if (wellnessStore && typeof wellnessStore.adjustHydration === 'function') {
+        wellnessStore.adjustHydration(quantity);
+    }
+};
+
+function ChatTab({ userId = 'voice-user', authToken = null }) {
     const [messages, setMessages] = useState([]);
     const [isListening, setIsListening] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -10,8 +67,6 @@ function ChatTab() {
     const [pipelineStage, setPipelineStage] = useState('idle');
     const [lastResponseMeta, setLastResponseMeta] = useState(null);
     const recognitionRef = useRef(null);
-    const userId = 'voice-user';
-
     useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
@@ -55,6 +110,11 @@ function ChatTab() {
         const text = rawText?.trim();
         if (!text) return;
 
+        const hydrationIntent = detectHydrationIntent(text);
+        if (hydrationIntent) {
+            logHydrationFromChat(hydrationIntent.quantity);
+        }
+
         setMessages((prev) => [...prev, { type: 'user', text }]);
         setIsLoading(true);
         setError(null);
@@ -64,9 +124,12 @@ function ChatTab() {
         try {
             const res = await fetch('/api/chatbox', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+                },
                 body: JSON.stringify({
-                    userId,
+                    userId: userId || 'voice-user',
                     input: text,
                 }),
             });
@@ -126,6 +189,7 @@ function ChatTab() {
 
     const handleSubmit = (event) => {
         event.preventDefault();
+        if (!textInput.trim()) return;
         handleSend(textInput);
         setTextInput('');
     };
