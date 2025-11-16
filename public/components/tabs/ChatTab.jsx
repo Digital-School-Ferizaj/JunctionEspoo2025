@@ -1,6 +1,9 @@
 const { useState, useEffect, useRef } = React;
 const { HeartIcon, SendIcon, ChatBubbleIcon, MicIcon } = window.AmilyIcons;
 
+const HISTORY_STORAGE_KEY = 'amily-chat-history-v1';
+const HIGHLIGHTS_STORAGE_KEY = 'amily-chat-highlights-v1';
+
 const HYDRATION_KEYWORDS = ['drink', 'drank', 'water', 'hydrate', 'hydrated', 'hydration', 'thirsty', 'tea', 'juice'];
 const REMINDER_KEYWORDS = ['remind', 'reminder', 'remember to', 'should drink', 'need to drink'];
 const NUMBER_WORD_MAP = {
@@ -66,6 +69,7 @@ function ChatTab({ userId = 'voice-user', authToken = null }) {
     const [textInput, setTextInput] = useState('');
     const [pipelineStage, setPipelineStage] = useState('idle');
     const [lastResponseMeta, setLastResponseMeta] = useState(null);
+    const [highlights, setHighlights] = useState([]);
     const recognitionRef = useRef(null);
     useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -106,6 +110,65 @@ function ChatTab({ userId = 'voice-user', authToken = null }) {
         };
     }, []);
 
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            const storedMessages = window.localStorage.getItem(HISTORY_STORAGE_KEY);
+            if (storedMessages) {
+                const parsedMessages = JSON.parse(storedMessages);
+                if (Array.isArray(parsedMessages) && parsedMessages.length) {
+                    setMessages(parsedMessages);
+                }
+            }
+            const storedHighlights = window.localStorage.getItem(HIGHLIGHTS_STORAGE_KEY);
+            if (storedHighlights) {
+                const parsedHighlights = JSON.parse(storedHighlights);
+                if (Array.isArray(parsedHighlights) && parsedHighlights.length) {
+                    setHighlights(parsedHighlights);
+                }
+            }
+        } catch (storageError) {
+            console.warn('Unable to hydrate chat history', storageError);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            if (messages.length) {
+                window.localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(messages.slice(-200)));
+            } else {
+                window.localStorage.removeItem(HISTORY_STORAGE_KEY);
+            }
+        } catch (persistError) {
+            console.warn('Unable to persist chat history', persistError);
+        }
+    }, [messages]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        try {
+            if (highlights.length) {
+                window.localStorage.setItem(HIGHLIGHTS_STORAGE_KEY, JSON.stringify(highlights.slice(0, 20)));
+            } else {
+                window.localStorage.removeItem(HIGHLIGHTS_STORAGE_KEY);
+            }
+        } catch (persistError) {
+            console.warn('Unable to persist chat highlights', persistError);
+        }
+    }, [highlights]);
+
+    const addHighlight = (userText, aiText) => {
+        if (!userText || !aiText) return;
+        const entry = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            timestamp: new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+            userText: userText.slice(0, 160),
+            aiText: aiText.slice(0, 180),
+        };
+        setHighlights((prev) => [entry, ...prev].slice(0, 12));
+    };
+
     const handleSend = async (rawText) => {
         const text = rawText?.trim();
         if (!text) return;
@@ -115,7 +178,11 @@ function ChatTab({ userId = 'voice-user', authToken = null }) {
             logHydrationFromChat(hydrationIntent.quantity);
         }
 
-        setMessages((prev) => [...prev, { type: 'user', text }]);
+        let pendingMessagesSnapshot = [];
+        setMessages((prev) => {
+            pendingMessagesSnapshot = [...prev, { type: 'user', text }];
+            return pendingMessagesSnapshot;
+        });
         setIsLoading(true);
         setError(null);
         setPipelineStage('thinking');
@@ -131,6 +198,7 @@ function ChatTab({ userId = 'voice-user', authToken = null }) {
                 body: JSON.stringify({
                     userId: userId || 'voice-user',
                     input: text,
+                    history: (pendingMessagesSnapshot.length ? pendingMessagesSnapshot : [...messages, { type: 'user', text }]).slice(-50),
                 }),
             });
             const data = await res.json();
@@ -152,6 +220,8 @@ function ChatTab({ userId = 'voice-user', authToken = null }) {
                         },
                     },
                 ]);
+
+                addHighlight(text, aiText);
 
                 setLastResponseMeta({
                     firstTurn: data.data?.firstTurn,
@@ -466,6 +536,38 @@ function ChatTab({ userId = 'voice-user', authToken = null }) {
                             </div>
                         )}
                     </div>
+                </div>
+
+                <div className="rounded-[36px] border border-[#f4d3b4] bg-white/95 shadow-lg p-6 space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#db7758]">Past conversations</p>
+                            <p className="text-sm text-[#6b6b6b]">Amily keeps a short memory on this device so the calm tone carries from one visit to the next.</p>
+                        </div>
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#db7758]/70">Stored locally</span>
+                    </div>
+                    {highlights.length ? (
+                        <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                            {highlights.map((entry) => (
+                                <div
+                                    key={entry.id}
+                                    className="rounded-2xl border border-[#f6dcca] bg-[#fffdf8] p-4 text-left shadow-sm space-y-2"
+                                >
+                                    <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#db7758]">{entry.timestamp}</div>
+                                    <p className="text-sm text-[#545454]">
+                                        <span className="font-semibold text-[#db7758]">You</span> — {entry.userText}
+                                    </p>
+                                    <p className="text-sm text-[#6b6b6b]">
+                                        <span className="font-semibold text-[#db7758]">Amily</span> — {entry.aiText}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="rounded-2xl border border-dashed border-[#f4d3b4] bg-[#fffaf0] p-4 text-sm text-[#6b6b6b]">
+                            Once you share a few notes, we will keep gentle highlights here so Amily remembers the next time you open the app.
+                        </div>
+                    )}
                 </div>
 
                 {lastResponseMeta && (
