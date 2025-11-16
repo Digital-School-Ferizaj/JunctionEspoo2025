@@ -25,6 +25,7 @@ const AlertTriangleIcon = createIcon('warning');
 const SunIcon = createIcon('sunny');
 const MoonIcon = createIcon('dark_mode');
 const XIcon = createIcon('close');
+const MicIcon = createIcon('mic');
 const ChatBubbleIcon = createIcon('chat');
 const BuddyIcon = createIcon('diversity_3');
 const WellnessLeafIcon = createIcon('spa');
@@ -48,6 +49,7 @@ window.AmilyIcons = {
     SunIcon,
     MoonIcon,
     XIcon,
+    MicIcon,
     ChatBubbleIcon,
     BuddyIcon,
     WellnessLeafIcon,
