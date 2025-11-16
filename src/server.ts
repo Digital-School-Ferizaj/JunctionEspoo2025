@@ -712,6 +712,37 @@ app.post('/api/wellness/log', async (req: Request, res: Response) => {
   }
 });
 
+/**
+ * POST /api/tts
+ * Generate TTS audio for raw text (no AI response, just the text)
+ */
+app.post('/api/tts', async (req: Request, res: Response) => {
+  try {
+    const { text } = req.body;
+
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({
+        success: false,
+        error: 'Text is required.',
+      });
+    }
+
+    const audioUrl = await generateTTS(text.trim());
+
+    res.json({
+      success: true,
+      audioUrl,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error('TTS generation error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Could not generate audio.',
+    });
+  }
+});
+
 // Start server
 const PORT = config.port;
 app.listen(PORT, () => {
