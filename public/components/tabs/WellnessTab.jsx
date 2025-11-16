@@ -1,5 +1,69 @@
-const { useState, useEffect } = React;
+const { useState, useEffect, useCallback } = React;
 const { ActivityIcon, WellnessLeafIcon } = window.AmilyIcons;
+
+const resolveTimeOfDay = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'morning';
+    if (hour < 17) return 'afternoon';
+    return 'evening';
+};
+
+const priorityToStatus = {
+    high: 'low',
+    medium: 'notice',
+    low: 'ok',
+};
+
+const formatNudgeLabel = (type) => {
+    switch (type) {
+        case 'medication':
+            return 'Medication';
+        case 'hydration':
+            return 'Hydration';
+        case 'activity':
+            return 'Movement';
+        case 'weather':
+            return 'Weather care';
+        case 'rest':
+            return 'Rest';
+        default:
+            return 'Daily note';
+    }
+};
+
+const getMoodSnapshot = (status, current, goal) => {
+    if (status === 'ok') {
+        return {
+            value: 'Calm & steady',
+            tip: `Already ${current} of ${goal} glasses logged today.`,
+            status: 'ok',
+        };
+    }
+    if (status === 'notice') {
+        return {
+            value: 'Energy dipping a little',
+            tip: `Only ${current} of ${goal} glasses so far. A small glass would help.`,
+            status: 'notice',
+        };
+    }
+    return {
+        value: 'Needs a pause',
+        tip: `Hydration still at ${current} / ${goal}. Let's sip water before the next activity.`,
+        status: 'low',
+    };
+};
+
+const formatTimestamp = (value) => {
+    if (!value) return null;
+    try {
+        return new Date(value).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    } catch {
+        return null;
+    }
+};
 
 function WellnessTab({ userId = 'demo-user', authToken = null }) {
     const profile = {
@@ -16,6 +80,10 @@ function WellnessTab({ userId = 'demo-user', authToken = null }) {
         lastDrink: wellnessStore?.getLastDrink?.() ?? null,
     });
     const [hydration, setHydration] = useState(getHydrationSnapshot);
+    const [nudges, setNudges] = useState([]);
+    const [isFetchingNudges, setIsFetchingNudges] = useState(false);
+    const [nudgesError, setNudgesError] = useState(null);
+    const [lastSync, setLastSync] = useState(null);
 
     useEffect(() => {
         if (wellnessStore?.setUser) {
@@ -51,6 +119,60 @@ function WellnessTab({ userId = 'demo-user', authToken = null }) {
             : hydration.current <= 2
             ? 'low'
             : 'notice';
+    const moodSnapshot = getMoodSnapshot(hydrationStatus, hydration.current || 0, hydration.goal || 0);
+    const timeOfDay = resolveTimeOfDay();
+    const moodParam = hydrationStatus === 'ok' ? 'good' : hydrationStatus === 'notice' ? 'ok' : 'low';
+
+    const fetchWellnessNudges = useCallback(
+        async ({ signal } = {}) => {
+            if (typeof window === 'undefined') return;
+            const activeUserId = wellnessStore?.getActiveUserId?.() || userId || 'demo-user';
+            setIsFetchingNudges(true);
+            setNudgesError(null);
+            try {
+                const params = new URLSearchParams({
+                    userId: activeUserId,
+                    timeOfDay,
+                    mood: moodParam,
+                });
+                const response = await fetch(`/api/wellness/nudges?${params.toString()}`, {
+                    headers: {
+                        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+                    },
+                    signal,
+                });
+                let payload = null;
+                try {
+                    payload = await response.json();
+                } catch {
+                    payload = null;
+                }
+                if (!response.ok || !payload?.success) {
+                    throw new Error(payload?.error || 'Unable to load suggestions right now.');
+                }
+                if (signal?.aborted) return;
+                const list = Array.isArray(payload.data) ? payload.data : [];
+                setNudges(list);
+                setLastSync(payload.timestamp || new Date().toISOString());
+            } catch (error) {
+                if (signal?.aborted) return;
+                console.warn('Unable to load wellness nudges', error);
+                setNudges([]);
+                setNudgesError(error?.message || 'Unable to load suggestions.');
+            } finally {
+                if (!signal?.aborted) {
+                    setIsFetchingNudges(false);
+                }
+            }
+        },
+        [authToken, moodParam, timeOfDay, userId]
+    );
+
+    useEffect(() => {
+        const controller = new AbortController();
+        fetchWellnessNudges({ signal: controller.signal });
+        return () => controller.abort();
+    }, [fetchWellnessNudges]);
 
     const logHydrationToServer = (amount = 1) => {
         fetch('/api/wellness/log', {
@@ -75,55 +197,90 @@ function WellnessTab({ userId = 'demo-user', authToken = null }) {
         logHydrationToServer(1);
     };
 
-    const lastDrinkLabel = hydration.lastDrink
-        ? new Date(hydration.lastDrink).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-          })
-        : null;
+    const handleRefreshNudges = () => {
+        fetchWellnessNudges();
+    };
+
+    const lastDrinkLabel = formatTimestamp(hydration.lastDrink);
+    const lastSyncLabel = formatTimestamp(lastSync);
+
+    const hydrationNudge = nudges.find((nudge) => nudge.type === 'hydration');
+    const medicationNudge = nudges.find((nudge) => nudge.type === 'medication');
+    const activityNudge = nudges.find((nudge) => nudge.type === 'activity');
+    const weatherNudge = nudges.find((nudge) => nudge.type === 'weather');
+
+    const hydrationTip =
+        hydrationNudge?.message ||
+        (hydration.current >= hydration.goal
+            ? 'Goal met – sip warm tea if you like.'
+            : glassesRemaining === 1
+            ? 'Just one more gentle glass.'
+            : `${glassesRemaining} more to feel refreshed.`);
 
     const wellnessAreas = [
         {
             label: 'Mood today',
-            value: hydration.current >= hydration.goal ? 'Calm & steady' : 'Tired but hopeful',
-            status: hydration.current >= hydration.goal ? 'ok' : 'notice',
-            tip: hydration.current >= hydration.goal
-                ? 'Celebrate small wins with a favorite song.'
-                : 'Slow breathing exercises can help.',
-        },
-        {
-            label: 'Rest last night',
-            value: '5h 10m',
-            status: 'notice',
-            tip: 'A 20 minute rest after lunch will help.',
+            value: moodSnapshot.value,
+            status: moodSnapshot.status,
+            tip: moodSnapshot.tip,
         },
         {
             label: 'Hydration',
             value: `${hydration.current} of ${hydration.goal} glasses`,
             status: hydrationStatus,
-            tip:
-                hydration.current >= hydration.goal
-                    ? 'Goal met – sip warm tea if you like.'
-                    : glassesRemaining === 1
-                    ? 'Just one more gentle glass.'
-                    : `${glassesRemaining} more to feel refreshed.`,
+            tip: hydrationTip,
         },
-        {
-            label: 'Movement',
-            value: hydration.current >= 3 ? '720 steps' : '420 steps',
-            status: hydration.current >= 3 ? 'ok' : 'notice',
-            tip: 'Walk near the window for sunlight.',
-        },
-        { label: 'Medication', value: 'Morning taken', status: 'ok' },
-        {
-            label: 'Weather care',
-            value: '3 °C / icy',
-            status: 'notice',
-            tip: 'Use the handrail outside today.',
-        },
-    ];
+        medicationNudge
+            ? {
+                  label: 'Medication',
+                  value: medicationNudge.message,
+                  status: priorityToStatus[medicationNudge.priority] || 'notice',
+                  tip: medicationNudge.action ? `Suggested action: ${medicationNudge.action}` : null,
+              }
+            : null,
+        activityNudge
+            ? {
+                  label: 'Movement',
+                  value: activityNudge.message,
+                  status: priorityToStatus[activityNudge.priority] || 'notice',
+                  tip: activityNudge.action ? `Suggested action: ${activityNudge.action}` : 'Walk near the window for sunlight.',
+              }
+            : null,
+        weatherNudge
+            ? {
+                  label: 'Weather care',
+                  value: weatherNudge.message,
+                  status: priorityToStatus[weatherNudge.priority] || 'notice',
+                  tip: weatherNudge.action || "Plan outfits with today's forecast in mind.",
+              }
+            : null,
+    ].filter(Boolean);
 
-    const alertAreas = wellnessAreas.filter((area) => area.status !== 'ok');
+    const formattedNudges = nudges.map((nudge, idx) => ({
+        id: `${nudge.type}-${idx}`,
+        label: formatNudgeLabel(nudge.type),
+        message: nudge.message,
+        priority: nudge.priority || 'medium',
+        action: nudge.action,
+        value: null,
+    }));
+
+    const fallbackSuggestions = wellnessAreas
+        .filter((area) => area.status !== 'ok')
+        .map((area) => ({
+            id: `fallback-${area.label}`,
+            label: area.label,
+            message: area.tip || area.value,
+            priority: area.status === 'low' ? 'high' : 'medium',
+            value: area.value,
+        }));
+
+    const suggestionCards = formattedNudges.length ? formattedNudges : fallbackSuggestions;
+    const priorityBadgeClass = {
+        high: 'bg-[#fde4dc] text-[#b24327]',
+        medium: 'bg-[#fff1e7] text-[#c26345]',
+        low: 'bg-[#f7efe6] text-[#8a6b5a]',
+    };
 
     return (
         <section className="px-4 py-12 pb-28 bg-[#FFFFF0]">
@@ -202,27 +359,58 @@ function WellnessTab({ userId = 'demo-user', authToken = null }) {
                     </div>
 
                     <div className="rounded-[32px] border border-[#f4d3b4] bg-white/90 shadow-lg p-6 space-y-5">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 rounded-2xl bg-[#fde9dc] text-[#db7758]">
-                                <WellnessLeafIcon />
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 rounded-2xl bg-[#fde9dc] text-[#db7758]">
+                                    <WellnessLeafIcon />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#db7758]">Recommendations only when needed</p>
+                                    <h4 className="text-xl font-bold">Today's gentle suggestions</h4>
+                                </div>
                             </div>
-                            <div>
-                                <p className="text-sm font-semibold uppercase tracking-[0.3em] text-[#db7758]">Recommendations only when needed</p>
-                                <h4 className="text-xl font-bold">Today's gentle suggestions</h4>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-[#6b6b6b]">
+                                {lastSyncLabel && <span>Synced {lastSyncLabel}</span>}
+                                <button
+                                    type="button"
+                                    onClick={handleRefreshNudges}
+                                    disabled={isFetchingNudges}
+                                    className={`px-4 py-2 rounded-2xl border border-[#f4d3b4] text-[#db7758] font-semibold ${isFetchingNudges ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                >
+                                    {isFetchingNudges ? 'Refreshing…' : 'Refresh'}
+                                </button>
                             </div>
                         </div>
 
-                        {alertAreas.length === 0 ? (
+                        {isFetchingNudges ? (
+                            <div className="rounded-2xl border border-dashed border-[#f4d3b4] bg-[#fffaf0] p-4 text-sm text-[#6b6b6b]">
+                                Checking for new suggestions…
+                            </div>
+                        ) : suggestionCards.length === 0 ? (
                             <p className="text-sm text-[#6b6b6b]">
-                                Everything looks steady today. Enjoy a calm chat or record a new memory.
+                                {nudgesError
+                                    ? `Unable to reach the wellness service (${nudgesError}).`
+                                    : 'Everything looks steady today. Enjoy a calm chat or record a new memory.'}
                             </p>
                         ) : (
                             <div className="space-y-4">
-                                {alertAreas.map((area) => (
-                                    <div key={area.label} className="rounded-2xl border border-[#f4d3b4] bg-[#fff6ea] p-4 space-y-1">
-                                        <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#db7758]">{area.label}</p>
-                                        <p className="font-semibold">{area.tip}</p>
-                                        <p className="text-sm text-[#6b6b6b]">Current status: {area.value}</p>
+                                {suggestionCards.map((card) => (
+                                    <div key={card.id} className="rounded-2xl border border-[#f4d3b4] bg-[#fff6ea] p-4 space-y-1">
+                                        <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.3em] text-[#db7758]">
+                                            <span>{card.label}</span>
+                                            <span
+                                                className={`text-[10px] px-3 py-1 rounded-full ${
+                                                    priorityBadgeClass[card.priority] || priorityBadgeClass.low
+                                                }`}
+                                            >
+                                                {card.priority === 'high' ? 'Needs attention' : card.priority === 'medium' ? 'Reminder' : 'FYI'}
+                                            </span>
+                                        </div>
+                                        <p className="font-semibold">{card.message}</p>
+                                        {card.action && <p className="text-sm text-[#6b6b6b]">Suggested action: {card.action}</p>}
+                                        {card.value && (
+                                            <p className="text-sm text-[#6b6b6b]">Current status: {card.value}</p>
+                                        )}
                                     </div>
                                 ))}
                             </div>

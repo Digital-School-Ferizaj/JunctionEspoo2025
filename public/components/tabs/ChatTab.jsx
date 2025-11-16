@@ -6,6 +6,38 @@ const HIGHLIGHTS_STORAGE_KEY = 'amily-chat-highlights-v1';
 
 const HYDRATION_KEYWORDS = ['drink', 'drank', 'water', 'hydrate', 'hydrated', 'hydration', 'thirsty', 'tea', 'juice'];
 const REMINDER_KEYWORDS = ['remind', 'reminder', 'remember to', 'should drink', 'need to drink'];
+const SAFETY_EMERGENCY_PHRASES = [
+    'i need help',
+    'help me',
+    'call for help',
+    'get help',
+    "i don't feel safe",
+    'i feel unsafe',
+    'not safe',
+    'scared',
+    'afraid',
+    'i feel dizzy',
+    'i feel weak',
+    'i fell',
+    'i fell down',
+    'chest pain',
+    'cant breathe',
+    "can't breathe",
+    'trouble breathing',
+    'heart racing',
+    'emergency',
+    '911',
+    'ambulance',
+];
+const SAFETY_CONCERN_PHRASES = [
+    'not feeling well',
+    'feeling tired',
+    'feeling confused',
+    'forgot to take',
+    'missed my medication',
+    'feel lonely',
+    'feel sad',
+];
 const NUMBER_WORD_MAP = {
     one: 1,
     two: 2,
@@ -61,6 +93,28 @@ const logHydrationFromChat = (quantity = 1) => {
     }
 };
 
+const detectLocalSafetyConcerns = (text = '') => {
+    const lowerText = text.toLowerCase();
+    const emergencyMatches = SAFETY_EMERGENCY_PHRASES.filter((phrase) => lowerText.includes(phrase));
+    if (emergencyMatches.length > 0) {
+        return { level: 'emergency', detected: emergencyMatches };
+    }
+    const concernMatches = SAFETY_CONCERN_PHRASES.filter((phrase) => lowerText.includes(phrase));
+    if (concernMatches.length > 0) {
+        return { level: 'concern', detected: concernMatches };
+    }
+    return { level: 'normal', detected: [] };
+};
+
+const broadcastSafetySignal = (payload) => {
+    if (typeof window === 'undefined' || !payload) return;
+    window.dispatchEvent(
+        new CustomEvent('amily:safety:signal', {
+            detail: payload,
+        })
+    );
+};
+
 function ChatTab({ userId = 'voice-user', authToken = null }) {
     const [messages, setMessages] = useState([]);
     const [isListening, setIsListening] = useState(false);
@@ -71,6 +125,27 @@ function ChatTab({ userId = 'voice-user', authToken = null }) {
     const [lastResponseMeta, setLastResponseMeta] = useState(null);
     const [highlights, setHighlights] = useState([]);
     const recognitionRef = useRef(null);
+    const notifyEmergencyServices = async (alertDetails, transcript) => {
+        try {
+            await fetch('/api/safety/emergency', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+                },
+                body: JSON.stringify({
+                    userId: userId || 'voice-user',
+                    type: 'voice_keywords',
+                    level: alertDetails?.level || 'emergency',
+                    detected: alertDetails?.detected || [],
+                    transcript,
+                    location: null,
+                }),
+            });
+        } catch (serviceError) {
+            console.warn('Unable to reach emergency service endpoint', serviceError);
+        }
+    };
     useEffect(() => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
@@ -176,6 +251,23 @@ function ChatTab({ userId = 'voice-user', authToken = null }) {
         const hydrationIntent = detectHydrationIntent(text);
         if (hydrationIntent) {
             logHydrationFromChat(hydrationIntent.quantity);
+        }
+        const safetyAlert = detectLocalSafetyConcerns(text);
+        if (safetyAlert.level !== 'normal') {
+            const signalPayload = {
+                id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                level: safetyAlert.level,
+                detected: safetyAlert.detected,
+                text,
+                source: 'user',
+                timestamp: new Date().toISOString(),
+                notified: false,
+            };
+            if (safetyAlert.level === 'emergency') {
+                signalPayload.notified = true;
+                notifyEmergencyServices(safetyAlert, text);
+            }
+            broadcastSafetySignal(signalPayload);
         }
 
         let pendingMessagesSnapshot = [];

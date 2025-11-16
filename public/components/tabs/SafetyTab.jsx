@@ -1,8 +1,9 @@
-const { useState } = React;
+const { useState, useEffect, useCallback } = React;
 const { ShieldIcon, PhoneIcon } = window.AmilyIcons;
 
 function SafetyTab({ userId = 'demo-user', authToken = null }) {
     const [lastAction, setLastAction] = useState(null);
+    const [signals, setSignals] = useState([]);
     const contacts = [
         {
             label: 'Emergency services',
@@ -30,26 +31,63 @@ function SafetyTab({ userId = 'demo-user', authToken = null }) {
         },
     ];
 
+    const sendEmergencyRequest = useCallback(
+        async (payload = {}) => {
+            try {
+                await fetch('/api/safety/emergency', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+                    },
+                    body: JSON.stringify({
+                        userId: userId || 'demo-user',
+                        type: payload.type || 'voice_keywords',
+                        level: payload.level || 'emergency',
+                        detected: payload.detected || [],
+                        transcript: payload.text,
+                        source: payload.source || 'chat',
+                        location: payload.location ?? { lat: 40.7128, lng: -74.006 },
+                    }),
+                });
+            } catch (error) {
+                console.warn('Safety notification failed', error);
+            }
+        },
+        [authToken, userId]
+    );
+
+    useEffect(() => {
+        const handleSignal = (event) => {
+            const detail = event.detail || {};
+            const timeLabel = detail.timestamp
+                ? new Date(detail.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const signalEntry = {
+                id: detail.id || `${Date.now()}`,
+                level: detail.level || 'concern',
+                detected: detail.detected || [],
+                text: detail.text || 'Safety concern detected via chat',
+                source: detail.source || 'chat',
+                time: timeLabel,
+            };
+            setSignals((prev) => [signalEntry, ...prev].slice(0, 5));
+            if (detail.level === 'emergency') {
+                setLastAction({ type: 'voice emergency', time: timeLabel });
+                if (!detail.notified) {
+                    sendEmergencyRequest(detail);
+                }
+            }
+        };
+        window.addEventListener('amily:safety:signal', handleSignal);
+        return () => window.removeEventListener('amily:safety:signal', handleSignal);
+    }, [sendEmergencyRequest]);
+
     const handlePress = async (type) => {
         const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         setLastAction({ type, time });
 
-        try {
-            await fetch('/api/safety/emergency', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
-                },
-                body: JSON.stringify({
-                    userId: userId || 'demo-user',
-                    type,
-                    location: { lat: 40.7128, lng: -74.006 },
-                }),
-            });
-        } catch (error) {
-            console.warn('Safety notification failed', error);
-        }
+        sendEmergencyRequest({ type });
     };
 
     return (
@@ -65,6 +103,49 @@ function SafetyTab({ userId = 'demo-user', authToken = null }) {
                         The Safety page removes complicated screens. Each button calls a trusted person or service and alerts the care circle quietly.
                     </p>
                 </div>
+
+                {signals.length > 0 && (
+                    <div className="rounded-[32px] border border-[#f4d3b4] bg-white shadow-lg p-6 space-y-4">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#db7758]">Voice safety signal</p>
+                                <h3 className="text-xl font-bold">Amily heard a concern</h3>
+                            </div>
+                            <span
+                                className={`text-[11px] font-semibold uppercase tracking-[0.3em] px-4 py-2 rounded-full ${
+                                    signals[0].level === 'emergency'
+                                        ? 'bg-[#ffcbc2] text-[#b93823]'
+                                        : 'bg-[#ffe8c9] text-[#a46132]'
+                                }`}
+                            >
+                                {signals[0].level === 'emergency' ? 'Emergency keywords' : 'Concern keywords'}
+                            </span>
+                        </div>
+                        <div className="rounded-2xl bg-[#fff6ea] border border-[#f5d5c2] p-4 space-y-2">
+                            <p className="text-sm text-[#6b6b6b]">
+                                "{signals[0].text}"
+                            </p>
+                            {signals[0].detected?.length > 0 && (
+                                <p className="text-xs text-[#a05a46]">
+                                    Detected phrases: {signals[0].detected.join(', ')}
+                                </p>
+                            )}
+                            <p className="text-xs text-[#6b6b6b]">
+                                Source: {signals[0].source === 'user' ? 'Microphone' : 'System'} · {signals[0].time}
+                            </p>
+                        </div>
+                        {signals.length > 1 && (
+                            <div className="text-xs text-[#6b6b6b]">
+                                Recent signals:{' '}
+                                {signals.slice(1).map((entry, idx) => (
+                                    <span key={entry.id} className="inline-block mr-2">
+                                        {entry.level === 'emergency' ? '⚠️' : 'ℹ️'} {entry.time}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <div className="grid gap-4 sm:grid-cols-2">
                     {contacts.map((contact) => (
