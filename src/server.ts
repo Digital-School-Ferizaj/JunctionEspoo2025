@@ -29,6 +29,7 @@ import {
   generateChatReply,
   GEMINI_CHAT_MODEL,
   ELEVENLABS_TTS_MODEL,
+  resolveUserIdFromToken,
 } from './services';
 import {
   detectSafetyConcerns,
@@ -58,6 +59,23 @@ const chatMemory = new Map<string, ChatMemory>();
 
 const app = express();
 
+const getAuthTokenFromRequest = (req: Request): string | null => {
+  const header = req.headers.authorization;
+  if (Array.isArray(header)) {
+    const first = header[0];
+    if (!first) return null;
+    return first.startsWith('Bearer ') ? first.slice(7).trim() : first.trim();
+  }
+  if (typeof header !== 'string') return null;
+  const trimmed = header.trim();
+  if (!trimmed) return null;
+  return trimmed.toLowerCase().startsWith('bearer ') ? trimmed.slice(7).trim() : trimmed;
+};
+
+const resolveRequestUserId = (req: Request, fallback?: string | null) => {
+  return resolveUserIdFromToken(getAuthTokenFromRequest(req)) || fallback || null;
+};
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -76,6 +94,7 @@ app.use((req, _res, next) => {
 app.post('/api/checkin', async (req: Request, res: Response) => {
   try {
     const { userId, userInput, mood } = req.body;
+    const resolvedUserId = resolveRequestUserId(req, userId) || 'anonymous';
     
     // Detect emotion if user provided input
     const detectedEmotion = userInput ? detectEmotion(userInput) : 'calm';
@@ -102,7 +121,7 @@ app.post('/api/checkin', async (req: Request, res: Response) => {
     
     // Save to database
     await saveToSupabase('check_ins', {
-      user_id: userId,
+      user_id: resolvedUserId,
       plan: validatedPlan,
       timestamp: new Date().toISOString(),
     });
@@ -110,7 +129,7 @@ app.post('/api/checkin', async (req: Request, res: Response) => {
     // Notify care circle if mood is low
     if (validatedPlan.mood === 'low') {
       await triggerN8NWorkflow('mood_alert', {
-        userId,
+        userId: resolvedUserId,
         mood: 'low',
         timestamp: new Date().toISOString(),
       });
@@ -158,6 +177,7 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
     res.json({
       success: true,
       userId: result.userId,
+      token: result.token,
       message: 'Account created. Please check your email to confirm if required.',
     });
   } catch (error) {
@@ -195,6 +215,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
     res.json({
       success: true,
       userId: result.userId,
+      token: result.token,
       message: 'Logged in successfully.',
     });
   } catch (error) {
@@ -212,8 +233,9 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
  */
 app.get('/api/chatbox/history/:userId', async (req: Request, res: Response) => {
   try {
-    const { userId } = req.params;
-    const history = await getChatHistory(userId, 50);
+    const requestedUserId = req.params.userId;
+    const resolvedUserId = resolveRequestUserId(req, requestedUserId) || requestedUserId;
+    const history = await getChatHistory(resolvedUserId, 50);
 
     const messages = history.map((row: any) => ({
       type: row.role === 'user' ? 'user' : 'amily',
@@ -251,7 +273,8 @@ app.post('/api/chatbox', async (req: Request, res: Response) => {
       });
     }
 
-    const trimmedUserId = String(userId || 'anonymous');
+    const resolvedUserId = resolveRequestUserId(req, userId) || 'anonymous';
+    const trimmedUserId = String(resolvedUserId || 'anonymous');
     const memory = chatMemory.get(trimmedUserId) || {};
     const firstTurn = !memory.reminderAsked;
 
@@ -321,6 +344,7 @@ app.post('/api/chatbox', async (req: Request, res: Response) => {
 app.post('/api/memory', async (req: Request, res: Response) => {
   try {
     const { userId, storyInput } = req.body;
+    const resolvedUserId = resolveRequestUserId(req, userId) || 'anonymous';
     
     if (!storyInput || storyInput.trim().length === 0) {
       return res.status(400).json({
@@ -349,7 +373,7 @@ app.post('/api/memory', async (req: Request, res: Response) => {
     
     // Save memory to database
     await saveToSupabase('memories', {
-      user_id: userId,
+      user_id: resolvedUserId,
       memory: validatedMemory,
       timestamp: new Date().toISOString(),
     });
@@ -377,6 +401,7 @@ app.post('/api/memory', async (req: Request, res: Response) => {
 app.post('/api/buddy', async (req: Request, res: Response) => {
   try {
     const { userId, messageFrom, messageText } = req.body;
+    const resolvedUserId = resolveRequestUserId(req, userId) || 'anonymous';
     
     // Generate simple summary (no AI model)
     const validatedSummary: SummaryJSON = {
@@ -394,7 +419,7 @@ app.post('/api/buddy', async (req: Request, res: Response) => {
     
     // Save interaction
     await saveToSupabase('buddy_messages', {
-      user_id: userId,
+      user_id: resolvedUserId,
       message_from: messageFrom,
       summary: validatedSummary,
       timestamp: new Date().toISOString(),
@@ -454,8 +479,9 @@ app.get('/api/health', (_req: Request, res: Response) => {
  */
 app.get('/api/preferences/:userId', async (req: Request, res: Response) => {
   try {
-    const { userId } = req.params;
-    const preferences = await getUserPreferences(userId);
+    const requestedUserId = req.params.userId;
+    const resolvedUserId = resolveRequestUserId(req, requestedUserId) || requestedUserId;
+    const preferences = await getUserPreferences(resolvedUserId);
     
     res.json({
       success: true,
@@ -477,6 +503,7 @@ app.get('/api/preferences/:userId', async (req: Request, res: Response) => {
 app.post('/api/empathy', async (req: Request, res: Response) => {
   try {
     const { userInput } = req.body;
+    const resolvedUserId = resolveRequestUserId(req, req.body?.userId) || 'unknown';
     
     // Check for safety concerns first
     const safetyAlert = detectSafetyConcerns(userInput);
@@ -484,7 +511,7 @@ app.post('/api/empathy', async (req: Request, res: Response) => {
     if (safetyAlert.level === 'emergency' || safetyAlert.level === 'urgent') {
       // Handle emergency
       const emergencyResult = await handleEmergency(
-        req.body.userId || 'unknown',
+        resolvedUserId,
         safetyAlert,
         undefined,
         userInput
@@ -540,11 +567,12 @@ app.post('/api/empathy', async (req: Request, res: Response) => {
 app.post('/api/safety/vitals', async (req: Request, res: Response) => {
   try {
     const { userId, vitals }: { userId: string; vitals: VitalsData } = req.body;
+    const resolvedUserId = resolveRequestUserId(req, userId) || 'anonymous';
     
     const safetyAlert = analyzeVitals(vitals);
     
     if (safetyAlert.level === 'emergency' || safetyAlert.level === 'urgent') {
-      const emergencyResult = await handleEmergency(userId, safetyAlert, vitals);
+      const emergencyResult = await handleEmergency(resolvedUserId, safetyAlert, vitals);
       const reassurance = getEmergencyReassurance(safetyAlert);
       const audioUrl = await generateTTS(reassurance);
       
@@ -580,6 +608,7 @@ app.post('/api/safety/vitals', async (req: Request, res: Response) => {
 app.post('/api/safety/emergency', async (req: Request, res: Response) => {
   try {
     const { userId, type, location } = req.body;
+    const resolvedUserId = resolveRequestUserId(req, userId) || 'anonymous';
     
     const safetyAlert = {
       level: 'emergency' as const,
@@ -594,7 +623,7 @@ app.post('/api/safety/emergency', async (req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
     };
     
-    const emergencyResult = await handleEmergency(userId, safetyAlert, vitals);
+    const emergencyResult = await handleEmergency(resolvedUserId, safetyAlert, vitals);
     const reassurance = getEmergencyReassurance(safetyAlert);
     const audioUrl = await generateTTS(reassurance);
     
@@ -622,8 +651,11 @@ app.post('/api/safety/emergency', async (req: Request, res: Response) => {
 app.get('/api/wellness/nudges', async (req: Request, res: Response) => {
   try {
     const { userId, timeOfDay = 'morning', mood = 'ok' } = req.query;
+    const providedUserId = typeof userId === 'string' ? userId : undefined;
+    const resolvedUserId = resolveRequestUserId(req, providedUserId);
+    const activeUserId = resolvedUserId || providedUserId;
     
-    if (!userId) {
+    if (!activeUserId) {
       return res.status(400).json({
         success: false,
         error: 'User ID is required.',
@@ -678,9 +710,10 @@ app.get('/api/wellness/nudges', async (req: Request, res: Response) => {
 app.post('/api/wellness/log', async (req: Request, res: Response) => {
   try {
     const { userId, type, value } = req.body;
+    const resolvedUserId = resolveRequestUserId(req, userId) || 'anonymous';
     
     await saveToSupabase('wellness_log', {
-      user_id: userId,
+      user_id: resolvedUserId,
       type,
       value,
       timestamp: new Date().toISOString(),
