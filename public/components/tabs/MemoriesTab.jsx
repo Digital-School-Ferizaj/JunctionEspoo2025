@@ -1,8 +1,35 @@
-const { useState } = React;
+const { useState, useEffect, useRef } = React;
 const { MemorySparkIcon, SaveIcon } = window.AmilyIcons;
 
 function MemoriesTab() {
     const [input, setInput] = useState('');
+    const [recording, setRecording] = useState(false);
+    const [supportsSTT, setSupportsSTT] = useState(true);
+    const recognitionRef = useRef(null);
+    const baseInputRef = useRef('');          // permanent committed text
+    const lastFinalIndexRef = useRef(-1);     // track last processed final result index
+    const lastFinalAggregateRef = useRef(''); // aggregated finalized text seen so far
+    // Small punctuation helper: capitalize and add basic commas/periods for final chunks
+    const punctuate = (raw, isFinal = false) => {
+        let t = (raw || '').trim();
+        if (!t) return '';
+
+        // Capitalize first letter of the chunk
+        t = t.replace(/^\s*([a-z])/, (_, c) => c.toUpperCase());
+
+        if (!isFinal) {
+            return t;
+        }
+
+        // Insert a comma before some conjunctions for readability
+        t = t.replace(/\s+(but|because|so|however|although|therefore|yet)\s+/gi, (m, p1) => {
+            return ', ' + p1.toLowerCase() + ' ';
+        });
+
+        // Ensure the final chunk ends with punctuation
+        if (!/[.!?]$/.test(t)) t = t + '.';
+        return t;
+    };
     const [memories, setMemories] = useState([
         {
             title: 'The old oak tree',
@@ -26,6 +53,93 @@ function MemoriesTab() {
             ...prev,
         ]);
         setInput('');
+        baseInputRef.current = '';
+    };
+
+    useEffect(() => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            setSupportsSTT(false);
+            return;
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.continuous = true;
+        recognition.interimResults = false;
+
+        recognition.onstart = () => {
+            // reset final index when a new recognition session starts
+            lastFinalIndexRef.current = -1;
+            lastFinalAggregateRef.current = '';
+            setRecording(true);
+        };
+
+        recognition.onerror = (event) => {
+            console.warn('Speech recognition error:', event);
+            setRecording(false);
+        };
+
+        recognition.onend = () => {
+            setRecording(false);
+        };
+
+        recognition.onresult = (event) => {
+            // Process only new result indices (from event.resultIndex) so we append each final once
+            const startIndex = event.resultIndex || 0;
+            for (let i = startIndex; i < event.results.length; i++) {
+                const res = event.results[i];
+                const transcript = (res[0] && res[0].transcript) ? res[0].transcript.trim() : '';
+
+                if (res.isFinal) {
+                    // apply punctuation to the finalized chunk and append
+                    const chunk = punctuate(transcript, true);
+                    baseInputRef.current = ((baseInputRef.current || '') + ' ' + chunk).trim();
+                    setInput(baseInputRef.current);
+                    lastFinalIndexRef.current = i;
+                } else {
+                    // show interim appended to the committed base so words appear live
+                    const interim = punctuate(transcript, false);
+                    setInput(((baseInputRef.current || '') + ' ' + interim).trim());
+                }
+            }
+        };
+
+        recognitionRef.current = recognition;
+
+        return () => {
+            try {
+                recognitionRef.current?.abort();
+            } catch (e) {
+                // ignore
+            }
+            recognitionRef.current = null;
+        };
+    }, []);
+
+    const startRecognition = () => {
+        if (!recognitionRef.current) {
+            alert('Speech-to-text is not available in this browser.');
+            return;
+        }
+
+        try {
+            // set the base to whatever the current textarea contains (so typing is preserved)
+            baseInputRef.current = input || '';
+            lastFinalIndexRef.current = -1;
+            lastFinalAggregateRef.current = '';
+            recognitionRef.current.start();
+        } catch (e) {
+            console.warn('Failed to start recognition', e);
+        }
+    };
+
+    const stopRecognition = () => {
+        try {
+            recognitionRef.current?.stop();
+        } catch (e) {
+            // ignore
+        }
     };
 
     return (
@@ -45,7 +159,11 @@ function MemoriesTab() {
                         <label className="text-xs font-semibold uppercase tracking-[0.3em] text-[#db7758]">Tell a memory in your own words</label>
                         <textarea
                             value={input}
-                            onChange={(event) => setInput(event.target.value)}
+                            onChange={(event) => {
+                                setInput(event.target.value);
+                                // keep base in sync so typed text isn't lost while recording
+                                baseInputRef.current = event.target.value;
+                            }}
                             rows={6}
                             placeholder="For example: Every winter the lake would freeze and Dad would pull us on a sled..."
                             className="w-full rounded-3xl border border-[#f4d3b4] bg-[#fffaf0] p-5 text-base text-[#545454] placeholder:text-[#9b9b9b] focus:outline-none focus:ring-2 focus:ring-[#db7758]"
@@ -61,10 +179,22 @@ function MemoriesTab() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setInput('')}
+                                onClick={() => {
+                                    setInput('');
+                                    baseInputRef.current = '';
+                                }}
                                 className="px-6 py-3 rounded-2xl border-2 border-[#f4d3b4] text-sm font-semibold text-[#6b6b6b]"
                             >
                                 Clear
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => (recording ? stopRecognition() : startRecognition())}
+                                className={`px-6 py-3 rounded-2xl font-semibold border-2 border-[#db7758] text-[#db7758] ${
+                                    recording ? 'opacity-90' : ''
+                                }`}
+                            >
+                                {recording ? 'Listening...' : 'Use microphone'}
                             </button>
                         </div>
                         <p className="text-sm text-[#6b6b6b]">
