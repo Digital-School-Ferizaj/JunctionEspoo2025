@@ -1,4 +1,4 @@
-# 🌸 Amily - Digital Companion for Elderly Users
+# Amily - Digital Companion for Elderly Users
 
 A gentle, patient, emotionally intelligent digital companion designed to reduce stress, create clarity, and make elderly users feel safe, understood, and never rushed.
 
